@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "WORKWEAR 営業カタログサイト",
   "dependencies": {
-    "@vercel/kv": "^1.0.1"
+    "@vercel/blob": "^0.23.0"
   }
 }
