@@ -239,6 +239,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
       <div class="adm-mi" id="mi-prods" onclick="admTab('prods',this)">商品管理</div>
       <div class="adm-mi" id="mi-colors" onclick="admTab('colors',this)">カラー管理</div>
       <hr style="border:none;border-top:.5px solid var(--border);margin:8px 0;flex-basis:100%">
+      <div class="adm-mi" id="mi-migrate" onclick="admTab('migrate',this)">🔧 画像移行</div>
       <div class="adm-mi" onclick="doLogout()">ログアウト</div>
     </div>
     <div class="adm-body">
@@ -263,9 +264,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
         <p style="font-size:12px;color:var(--txt3);margin-bottom:12px">ここで登録したカラーは商品編集時に自動でカラードットに反映されます</p>
         <table class="tbl" id="color-tbl"></table>
       </div>
-    </div>
-  </div>
-</div>
+      <div class="adm-sec" id="adm-migrate">
+        <div class="adm-hdr"><span class="adm-ttl">🔧 既存画像をBlobへ移行</span></div>
+        <div style="background:var(--accent-bg);border:.5px solid var(--accent);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:16px;font-size:13px;color:var(--accent-txt);line-height:1.7">
+          フォルダインポートで登録した画像がBase64形式でJSONに埋め込まれており、保存時に413エラーが発生しています。<br>
+          このボタンを実行すると、すべてのBase64画像をVercel Blobにアップロードし、URLに置き換えます。<br>
+          <strong>一度だけ実行すれば完了です。</strong>
+        </div>
+        <div id="migrate-status" style="margin-bottom:14px"></div>
+        <button class="btn btn-acc" onclick="migrateBase64ToBlob()" id="migrate-btn">▶ 移行を開始する</button>
+        <div id="migrate-log" style="margin-top:16px;font-size:12px;font-family:monospace;background:var(--bg2);border:.5px solid var(--border);border-radius:var(--radius-sm);padding:12px;max-height:320px;overflow-y:auto;display:none;line-height:1.8"></div>
+      </div>
+    </div><!-- /.adm-body -->
+  </div><!-- /.adm-lay -->
+</div><!-- /#pg-adm -->
 
 <!-- MODALS -->
 <div class="ov" id="ov" onclick="ovClick(event)">
@@ -679,6 +691,29 @@ function calcSalePrice(){const v=parseFloat(document.getElementById('f-pprice').
 function syncColorFromPicker(){const h=document.getElementById('f-color-hex').value;document.getElementById('f-color-hex-txt').value=h;updateColorPreview()}
 function syncColorFromText(){const t=document.getElementById('f-color-hex-txt').value.trim();if(/^#[0-9A-Fa-f]{6}$/.test(t))document.getElementById('f-color-hex').value=t;updateColorPreview()}
 function updateColorPreview(){const h=document.getElementById('f-color-hex').value;document.getElementById('f-color-hex-txt').value=h;document.getElementById('color-preview-dot').style.background=h;document.getElementById('color-preview-name').textContent=document.getElementById('f-color-name').value||'プレビュー'}
+// ===== 画像アップロード（Blob） =====
+async function uploadImageToBlob(file, filename) {
+  try {
+    const cred = btoa(`${ADMIN_ID}:${ADMIN_PW}`);
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Basic ${cred}`,
+        'Content-Type': file.type || 'image/jpeg',
+        'X-Filename': filename,
+      },
+      body: file,
+    });
+    if (!res.ok) throw new Error(`Upload failed: HTTP ${res.status}`);
+    const data = await res.json();
+    return data.url;
+  } catch (e) {
+    // ローカル開発やアップロード失敗時はBase64フォールバック
+    console.warn('Blob upload failed, falling back to base64:', e.message);
+    return await fileToBase64(file);
+  }
+}
+
 function handleCatImg(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{tmpCatImg=ev.target.result;const prv=document.getElementById('cat-img-prv');prv.src=tmpCatImg;prv.style.display='block';document.getElementById('cat-img-icon').style.display='none';document.getElementById('cat-img-lbl').textContent='クリックして変更'};r.readAsDataURL(f)}
 function renderColorImgRows(){
   const colors=document.getElementById('f-pcolors').value.split(',').map(s=>s.trim()).filter(Boolean);
@@ -690,7 +725,7 @@ function renderColorImgRows(){
       ${img?`<button class="btn btn-sm" style="color:var(--err)" onclick="removeColorImg('${c}')">削除</button>`:''}</div>`;
   }).join('')||'<p style="font-size:12px;color:var(--txt3)">カラーを入力すると画像を設定できます</p>';
 }
-function pickColorImg(cn){const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{tmpColorImgs[cn]=ev.target.result;renderColorImgRows()};r.readAsDataURL(f)};inp.click()}
+function pickColorImg(cn){const inp=document.createElement('input');inp.type='file';inp.accept='image/*';inp.onchange=async e=>{const f=e.target.files[0];if(!f)return;setSaveStatus('saving','画像をアップロード中...');const url=await uploadImageToBlob(f,`prod-color-${cn}-${Date.now()}.${f.name.split('.').pop()}`);tmpColorImgs[cn]=url;setSaveStatus('','');renderColorImgRows()};inp.click()}
 function removeColorImg(c){delete tmpColorImgs[c];renderColorImgRows()}
 // ===== サイズ表ペースト解析 =====
 // Excel/Numbers/スプレッドシートからコピーしたタブ区切りテキストを解析して表に反映
@@ -771,8 +806,14 @@ function getSteData(){if(!steState.cols.length||!steState.rows.length)return nul
 async function saveCat(){
   const name=document.getElementById('f-cat-name').value.trim();
   if(!name){toast('カテゴリー名を入力してください');return}
-  if(editCatId){const c=db.cats.find(x=>x.id===editCatId);c.name=name;if(tmpCatImg)c.img=tmpCatImg;toast('カテゴリーを更新しました')}
-  else{db.cats.push({id:db.nextCatId++,name,img:tmpCatImg,active:true});toast('カテゴリーを追加しました')}
+  const catImgFile=document.getElementById('f-cat-img').files[0];
+  let imgUrl=editCatId?(db.cats.find(x=>x.id===editCatId)||{}).img:null;
+  if(catImgFile){
+    setSaveStatus('saving','画像をアップロード中...');
+    imgUrl=await uploadImageToBlob(catImgFile,`cat-${name}-${Date.now()}.${catImgFile.name.split('.').pop()}`);
+  }
+  if(editCatId){const c=db.cats.find(x=>x.id===editCatId);c.name=name;if(imgUrl)c.img=imgUrl;toast('カテゴリーを更新しました')}
+  else{db.cats.push({id:db.nextCatId++,name,img:imgUrl,active:true});toast('カテゴリーを追加しました')}
   closeModal(); renderAdmCats(); renderTop();
   await persistToServer();
 }
@@ -946,16 +987,19 @@ async function execImport(){
   btn.textContent='処理中...'; btn.disabled=true;
   let updatedCount=0,addedCount=0;
   for(const item of importPlan){
-    const colorImgsB64={};
+    const colorImgUrls={};
     for(const[colorName,file]of Object.entries(item.files)){
-      try{colorImgsB64[colorName]=await fileToBase64(file)}catch(e){console.warn(e)}
+      try{
+        const ext=file.name.split('.').pop();
+        colorImgUrls[colorName]=await uploadImageToBlob(file,`prod-${item.productId}-${colorName}-${Date.now()}.${ext}`);
+      }catch(e){console.warn(e)}
     }
     if(item.type==='update'){
       for(const colorName of item.colors){
         if(!item.prod.colors.includes(colorName))item.prod.colors.push(colorName);
-        if(colorImgsB64[colorName]){
+        if(colorImgUrls[colorName]){
           if(!item.prod.colorImgs)item.prod.colorImgs={};
-          item.prod.colorImgs[colorName]=colorImgsB64[colorName];
+          item.prod.colorImgs[colorName]=colorImgUrls[colorName];
         }
       }
       updatedCount++;
@@ -966,7 +1010,7 @@ async function execImport(){
         db.cats.push(newCat); catId=newCat.id;
       }
       const numId=parseInt(item.productId)||db.nextProdId;
-      db.prods.push({id:numId,catId,name:'',headline:'',desc:'',price:0,colors:item.colors,colorImgs:colorImgsB64,sizes:['S','M','L','XL','XXL','XXXL'],sizeTable:null,active:true});
+      db.prods.push({id:numId,catId,name:'',headline:'',desc:'',price:0,colors:item.colors,colorImgs:colorImgUrls,sizes:['S','M','L','XL','XXL','XXXL'],sizeTable:null,active:true});
       db.nextProdId=Math.max(db.nextProdId,numId)+1;
       addedCount++;
     }
@@ -985,6 +1029,113 @@ function fileToBase64(file){
     r.onerror=reject;
     r.readAsDataURL(file);
   });
+}
+// =============================================
+
+// =============================================
+// ===== Base64 → Blob 移行機能 =====
+// =============================================
+async function migrateBase64ToBlob(){
+  const btn=document.getElementById('migrate-btn');
+  const logEl=document.getElementById('migrate-log');
+  const statusEl=document.getElementById('migrate-status');
+  btn.disabled=true; btn.textContent='移行中...';
+  logEl.style.display='block'; logEl.innerHTML='';
+
+  function log(msg, color=''){
+    logEl.innerHTML+=`<div style="color:${color||'inherit'}">${msg}</div>`;
+    logEl.scrollTop=logEl.scrollHeight;
+  }
+
+  // Base64データURLかどうか判定
+  function isBase64(str){ return typeof str==='string' && str.startsWith('data:image/'); }
+
+  // Base64 → Fileオブジェクト変換
+  function base64ToFile(dataUrl, filename){
+    const arr=dataUrl.split(','), mime=arr[0].match(/:(.*?);/)[1];
+    const bstr=atob(arr[1]); let n=bstr.length;
+    const u8arr=new Uint8Array(n);
+    while(n--)u8arr[n]=bstr.charCodeAt(n);
+    return new File([u8arr], filename, {type:mime});
+  }
+
+  let totalImages=0, migratedCount=0, errorCount=0;
+
+  // 全商品のcolorImgsをスキャン
+  for(const prod of db.prods){
+    if(!prod.colorImgs) continue;
+    for(const [colorName, imgVal] of Object.entries(prod.colorImgs)){
+      if(isBase64(imgVal)) totalImages++;
+    }
+  }
+  // 全カテゴリーのimgもスキャン
+  for(const cat of db.cats){
+    if(isBase64(cat.img)) totalImages++;
+  }
+
+  if(totalImages===0){
+    statusEl.innerHTML=`<div style="background:var(--ok-bg);color:var(--ok);padding:10px 14px;border-radius:var(--radius-sm);font-size:13px">✓ Base64画像は見つかりませんでした。すでに移行済みか、画像が未登録です。</div>`;
+    btn.disabled=false; btn.textContent='▶ 移行を開始する';
+    return;
+  }
+
+  log(`検出: Base64画像 ${totalImages}件を移行します...`);
+  statusEl.innerHTML=`<div style="background:var(--accent-bg);color:var(--accent);padding:8px 14px;border-radius:var(--radius-sm);font-size:13px">移行中: 0 / ${totalImages} 件</div>`;
+
+  // 商品画像の移行
+  for(const prod of db.prods){
+    if(!prod.colorImgs) continue;
+    for(const colorName of Object.keys(prod.colorImgs)){
+      const imgVal=prod.colorImgs[colorName];
+      if(!isBase64(imgVal)) continue;
+      try{
+        const ext=imgVal.split(';')[0].split('/')[1]||'jpg';
+        const filename=`prod-${prod.id}-${colorName}-${Date.now()}.${ext}`;
+        const file=base64ToFile(imgVal, filename);
+        const url=await uploadImageToBlob(file, filename);
+        if(url.startsWith('data:')){ throw new Error('Blobアップロード失敗'); }
+        prod.colorImgs[colorName]=url;
+        migratedCount++;
+        log(`✓ 商品ID:${prod.id} / ${colorName} → Blob`, 'var(--ok)');
+        statusEl.innerHTML=`<div style="background:var(--accent-bg);color:var(--accent);padding:8px 14px;border-radius:var(--radius-sm);font-size:13px">移行中: ${migratedCount} / ${totalImages} 件</div>`;
+      }catch(e){
+        errorCount++;
+        log(`✗ 商品ID:${prod.id} / ${colorName} 失敗: ${e.message}`, 'var(--err)');
+      }
+    }
+  }
+
+  // カテゴリー画像の移行
+  for(const cat of db.cats){
+    if(!isBase64(cat.img)) continue;
+    try{
+      const ext=cat.img.split(';')[0].split('/')[1]||'jpg';
+      const filename=`cat-${cat.id}-${Date.now()}.${ext}`;
+      const file=base64ToFile(cat.img, filename);
+      const url=await uploadImageToBlob(file, filename);
+      if(url.startsWith('data:')){ throw new Error('Blobアップロード失敗'); }
+      cat.img=url;
+      migratedCount++;
+      log(`✓ カテゴリー:${cat.name} → Blob`, 'var(--ok)');
+    }catch(e){
+      errorCount++;
+      log(`✗ カテゴリー:${cat.name} 失敗: ${e.message}`, 'var(--err)');
+    }
+  }
+
+  // 移行結果をサーバーに保存
+  if(migratedCount>0){
+    log('サーバーに保存中...');
+    await persistToServer();
+    log('✓ 保存完了', 'var(--ok)');
+  }
+
+  const resultMsg=errorCount===0
+    ?`✓ 移行完了！ ${migratedCount}件すべてのBase64画像をBlobに移行しました。`
+    :`移行完了（${migratedCount}件成功 / ${errorCount}件失敗）`;
+  statusEl.innerHTML=`<div style="background:${errorCount?'var(--err-bg)':'var(--ok-bg)'};color:${errorCount?'var(--err)':'var(--ok)'};padding:10px 14px;border-radius:var(--radius-sm);font-size:13px;font-weight:500">${resultMsg}</div>`;
+  btn.disabled=false; btn.textContent='▶ 再実行する';
+  if(errorCount===0) toast(`✓ 移行完了 — ${migratedCount}件`);
 }
 // =============================================
 
