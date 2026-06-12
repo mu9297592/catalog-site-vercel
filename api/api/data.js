@@ -112,11 +112,3 @@ module.exports = async function handler(req, res) {
 
   return res.status(405).json({ error: 'Method Not Allowed' });
 };
-
-module.exports.config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
-};
