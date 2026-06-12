@@ -921,28 +921,29 @@ async function handleImportFiles(fileList){
   const files=Array.from(fileList).filter(f=>/\.(jpe?g|png|webp)$/i.test(f.name));
   if(!files.length){toast('画像ファイルが見つかりませんでした');return}
   const parsed=[],skipped=[];
+  // 数字-数字パターン（商品IDフォルダ）かどうか判定
+  const isProdFolder=name=>/^\d+-\d+$/.test(name);
   for(const file of files){
     const relPath=file.webkitRelativePath||file.name;
     const parts=relPath.split('/');
-    // webkitRelativePath の構造例:
-    //   選択フォルダ名/ファイル名          → parts.length===2 → カテゴリー不明
-    //   選択フォルダ名/商品フォルダ/ファイル → parts.length===3 → parts[1]が商品フォルダ、parts[0]がカテゴリー
-    //   カテゴリー/選択フォルダ/商品/ファイル → parts.length===4 → parts[1]がカテゴリー
-    // ファイルの2つ上のフォルダをカテゴリー候補とする（商品IDフォルダの親）
+    // webkitRelativePath の構造:
+    //   [ルート]/ファイル                        → parts.length===2: ファイルが直置き
+    //   [ルート]/商品フォルダ/ファイル            → parts.length===3
+    //   [ルート]/カテゴリー/商品フォルダ/ファイル → parts.length===4
+    //
+    // ファイルから1つ上が商品IDフォルダ（数字-数字）かを見て判定する
+    // 商品IDフォルダの1つ上がカテゴリーフォルダ
     let parentFolder='';
-    if(parts.length>=4){
-      // カテゴリー / 商品フォルダ / ファイル のとき → ファイルから2つ上
-      parentFolder=parts[parts.length-3];
-    } else if(parts.length===3){
-      // 選択フォルダ / 商品フォルダ / ファイル のとき → 選択フォルダ名はルートなので商品フォルダの親を使う
-      // 商品フォルダ名が数字ハイフン数字パターン（例: 1105-01）なら、その親をカテゴリーとする
-      const prodFolder=parts[parts.length-2];
-      parentFolder=/^\d+-\d+$/.test(prodFolder)?parts[0]:prodFolder;
+    const fileParent=parts[parts.length-2]||''; // ファイルの直上フォルダ
+    const fileGrandParent=parts[parts.length-3]||''; // 2つ上フォルダ
+    if(isProdFolder(fileParent)){
+      // 直上が商品IDフォルダ → 2つ上がカテゴリー候補
+      // ただし2つ上も商品IDフォルダ or 空 ならカテゴリーなし
+      parentFolder=(!fileGrandParent||isProdFolder(fileGrandParent))?'':fileGrandParent;
     } else {
+      // 直上が商品IDフォルダでない（ファイルが商品フォルダ直下でない）→ カテゴリーなし
       parentFolder='';
     }
-    // 商品IDフォルダ自体（例: 1105-01）がparentFolderに入らないよう除外
-    if(/^\d+-\d+$/.test(parentFolder)) parentFolder='';
     const fileName=parts[parts.length-1];
     const m=fileName.match(/^(\d+)-\d+_(.+)\.(jpe?g|png|webp)$/i);
     if(!m){skipped.push(fileName);continue}
@@ -984,7 +985,8 @@ function renderImportPreview(plan,skipped){
     const catCell=item.type==='update'
       ?(db.cats.find(c=>c.id===item.prod.catId)||{}).name||'—'
       :item.catId?`<span style="color:var(--ok)">${item.catName}</span>`
-        :`<span style="color:var(--err)">${item.catName}（未登録→自動作成）</span>`;
+        :item.catName?`<span style="color:var(--err)">${item.catName}（未登録→自動作成）</span>`
+        :`<span style="color:var(--txt3)">未設定（後で編集）</span>`;
     const chips=item.colors.map(c=>`<span class="imp-color-chip">${c}</span>`).join('');
     return`<tr><td>${badge}</td><td style="font-family:monospace;font-weight:600;color:var(--txt)">${item.productId}</td><td style="color:var(--txt)">${name}</td><td>${catCell}</td><td><div style="display:flex;flex-wrap:wrap">${chips}</div></td></tr>`;
   }).join('');
