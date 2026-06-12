@@ -202,6 +202,8 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
       <p class="det-headline" id="det-headline"></p>
       <p class="det-title" id="det-name"></p>
       <p class="det-desc" id="det-desc"></p>
+      <div id="det-prices" style="display:none;flex-wrap:wrap;gap:16px;margin-bottom:14px"></div>
+      <p id="det-sizelabel" style="display:none;font-size:12px;color:var(--txt3);margin-bottom:6px"></p>
       <div class="det-sec"><p class="det-lbl">カラー</p><div class="col-opts" id="det-colors"></div></div>
       <div class="det-sec"><p class="det-lbl">サイズ</p><div class="sz-opts" id="det-sizes"></div></div>
     </div>
@@ -209,6 +211,10 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
   <div id="det-sizetbl-wrap" style="display:none;margin-top:28px;max-width:820px">
     <hr class="sec-div" style="margin-top:0"><p class="det-lbl">サイズ表</p>
     <div class="size-tbl-wrap" id="det-sizetbl"></div>
+  </div>
+  <div id="det-overview-wrap" style="display:none;margin-top:28px;max-width:820px">
+    <hr class="sec-div" style="margin-top:0"><p class="det-lbl">概要</p>
+    <div id="det-overview"></div>
   </div>
   <hr class="sec-div"><p class="det-lbl">同カテゴリーのおすすめ</p>
   <div class="rec-grid" id="det-rec"></div>
@@ -318,17 +324,15 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
     </div>
     <div class="sec-box">
       <div class="sec-box-ttl">価格 <span class="admin-badge">管理者のみ</span></div>
-      <div class="fr2">
-        <div class="fg"><label class="fl">定価（税込）</label><input class="fi" id="f-pprice" placeholder="例：3800" type="number" oninput="calcSalePrice()"></div>
-        <div class="fg">
-          <label class="fl">仕入れ価格（定価の30%）</label>
-          <div class="price-calc-box"><span class="price-display" id="f-sale-price">—</span><span style="font-size:11px;color:var(--txt3)">×0.3</span></div>
-        </div>
-      </div>
+      <div id="price-rows"></div>
+      <button class="btn btn-xs" onclick="addPriceRow()" style="margin-top:4px">＋ 価格を追加</button>
     </div>
     <div class="sec-box">
       <div class="sec-box-ttl">サイズ・カラー</div>
-      <div class="fg"><label class="fl">サイズ（カンマ区切り）</label><input class="fi" id="f-psizes" placeholder="例：XS,S,M,L,XL,XXL"></div>
+      <div class="fr2">
+        <div class="fg"><label class="fl">サイズ（カンマ区切り）</label><input class="fi" id="f-psizes" placeholder="例：XS,S,M,L,XL,XXL"></div>
+        <div class="fg"><label class="fl">SIZEラベル（任意）</label><input class="fi" id="f-psizelabel" placeholder="例：着丈 / 身幅 / 袖丈"></div>
+      </div>
       <div class="fg"><label class="fl">カラー（カンマ区切り）</label><input class="fi" id="f-pcolors" placeholder="例：ホワイト,ネイビー,ブラック" oninput="renderColorImgRows()"></div>
       <div class="fg"><label class="fl">カラー別サムネイル画像</label><div id="color-img-rows"></div></div>
     </div>
@@ -351,6 +355,14 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
         </div>
         <div class="ste-table-wrap"><table class="ste-table" id="ste-table"></table></div>
         <p style="font-size:11px;color:var(--txt3);padding:0 10px 8px">※直接入力・編集できます</p>
+      </div>
+    </div>
+    <div class="sec-box">
+      <div class="sec-box-ttl">概要 <span style="font-size:11px;color:var(--txt3);font-weight:400;margin-left:4px">素材・注意事項など（任意）</span></div>
+      <div id="overview-blocks"></div>
+      <div style="display:flex;gap:6px;margin-top:8px">
+        <button class="btn btn-xs" onclick="addOverviewText()">＋ テキスト</button>
+        <button class="btn btn-xs" onclick="addOverviewImage()">＋ 画像</button>
       </div>
     </div>
     <div class="modal-acts">
@@ -579,6 +591,16 @@ function showDet(prodId){
   hl.textContent=p.headline||''; hl.style.display=p.headline?'block':'none';
   document.getElementById('det-name').textContent=p.name;
   desc.textContent=p.desc||''; desc.style.display=p.desc?'block':'none';
+  // 複数価格表示
+  const priceWrap=document.getElementById('det-prices');
+  if(priceWrap){
+    const prices=p.prices&&p.prices.length?p.prices:(p.price?[{label:'定価',amount:p.price}]:[]);
+    priceWrap.innerHTML=prices.map(pr=>`<div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:12px;color:var(--txt3)">${esc(pr.label)}</span><span style="font-size:18px;font-weight:600;color:var(--txt)">¥${Number(pr.amount).toLocaleString()}</span></div>`).join('');
+    priceWrap.style.display=prices.length?'flex':'none';
+  }
+  // SIZEラベル
+  const slEl=document.getElementById('det-sizelabel');
+  if(slEl){slEl.textContent=p.sizeLabel||'';slEl.style.display=p.sizeLabel?'block':'none';}
   setDetImg(p,p.colors[0]);
   document.getElementById('det-colors').innerHTML=p.colors.map((c,i)=>`
     <div class="col-opt ${i===0?'sel':''}" id="co-${i}" onclick="selColor(${i},'${c}',${p.colors.length},${p.id})">
@@ -588,6 +610,16 @@ function showDet(prodId){
   const stw=document.getElementById('det-sizetbl-wrap');
   if(p.sizeTable&&p.sizeTable.cols.length){stw.style.display='block';document.getElementById('det-sizetbl').innerHTML=renderSizeTblHTML(p.sizeTable)}
   else stw.style.display='none';
+  // 概要表示
+  const ovw=document.getElementById('det-overview-wrap');
+  if(p.overview&&p.overview.length){
+    ovw.style.display='block';
+    document.getElementById('det-overview').innerHTML=p.overview.map(block=>{
+      if(block.type==='text') return`<p style="font-size:14px;color:var(--txt2);line-height:1.8;white-space:pre-wrap;margin-bottom:12px">${esc(block.value)}</p>`;
+      if(block.type==='image') return`<img src="${block.value}" style="max-width:100%;border-radius:var(--radius);margin-bottom:12px;display:block">`;
+      return'';
+    }).join('');
+  } else ovw.style.display='none';
   const recs=db.prods.filter(x=>x.catId===p.catId&&x.id!==p.id&&x.active).slice(0,3);
   document.getElementById('det-rec').innerHTML=recs.map(r=>{
     const fc=r.colors[0],ri=r.colorImgs[fc];
@@ -682,10 +714,12 @@ function openModal(type,id){
     document.getElementById('f-pname').value=p?p.name:'';
     document.getElementById('f-pheadline').value=p?p.headline||'':'';
     document.getElementById('f-pdesc').value=p?p.desc||'':'';
-    document.getElementById('f-pprice').value=p?p.price||'':'';
     document.getElementById('f-psizes').value=p?p.sizes.join(','):'S,M,L,XL';
+    document.getElementById('f-psizelabel').value=p?p.sizeLabel||'':'';
     document.getElementById('f-pcolors').value=p?p.colors.join(','):'';
-    calcSalePrice();
+    // 複数価格
+    const initPrices=p&&p.prices&&p.prices.length?p.prices:(p&&p.price?[{label:'定価（税込）',amount:p.price}]:[{label:'定価（税込）',amount:''}]);
+    renderPriceRows(initPrices);
     if(p)tmpColorImgs={...p.colorImgs};
     const sel=document.getElementById('f-pcat');
     sel.innerHTML=db.cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
@@ -696,6 +730,9 @@ function openModal(type,id){
       :{cols:[],rows:[]};
     renderSteTable();
     document.getElementById('ste-paste-area').value='';
+    // 概要ブロック
+    overviewBlocks=p&&p.overview?p.overview.map(b=>({...b})):[];
+    renderOverviewBlocks();
     document.getElementById('m-prod').style.display='block';
   } else if(type==='color'){
     editColorId=id; const c=id?db.colorMaster.find(x=>x.id===id):null;
@@ -711,10 +748,58 @@ function openModal(type,id){
 function closeModal(){document.getElementById('ov').classList.remove('on')}
 function ovClick(e){if(e.target.id==='ov')closeModal()}
 
-function calcSalePrice(){const v=parseFloat(document.getElementById('f-pprice').value);document.getElementById('f-sale-price').textContent=(!isNaN(v)&&v>0)?`¥${Math.round(v*0.3).toLocaleString()}`:'—'}
+function calcSalePrice(){}// 後方互換のため残す
 function syncColorFromPicker(){const h=document.getElementById('f-color-hex').value;document.getElementById('f-color-hex-txt').value=h;updateColorPreview()}
 function syncColorFromText(){const t=document.getElementById('f-color-hex-txt').value.trim();if(/^#[0-9A-Fa-f]{6}$/.test(t))document.getElementById('f-color-hex').value=t;updateColorPreview()}
 function updateColorPreview(){const h=document.getElementById('f-color-hex').value;document.getElementById('f-color-hex-txt').value=h;document.getElementById('color-preview-dot').style.background=h;document.getElementById('color-preview-name').textContent=document.getElementById('f-color-name').value||'プレビュー'}
+
+// ===== 複数価格 =====
+let priceRows=[];
+function renderPriceRows(initial){
+  priceRows=initial?initial.map(p=>({...p})):[{label:'定価（税込）',amount:''}];
+  _drawPriceRows();
+}
+function _drawPriceRows(){
+  document.getElementById('price-rows').innerHTML=priceRows.map((pr,i)=>`
+    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
+      <div class="fg" style="flex:1;margin-bottom:0"><label class="fl">ラベル</label><input class="fi" value="${esc(pr.label)}" placeholder="例：定価（税込）" oninput="priceRows[${i}].label=this.value"></div>
+      <div class="fg" style="flex:1;margin-bottom:0"><label class="fl">金額（税込）</label><input class="fi" type="number" value="${pr.amount||''}" placeholder="例：3800" oninput="priceRows[${i}].amount=parseFloat(this.value)||0;_updateSalePrice(${i})"></div>
+      <div class="fg" style="flex:1;margin-bottom:0"><label class="fl">仕入れ価格（×0.3）</label><div class="price-calc-box"><span class="price-display" id="sale-${i}">${pr.amount?'¥'+Math.round(pr.amount*0.3).toLocaleString():'—'}</span></div></div>
+      ${priceRows.length>1?`<button class="btn btn-xs" style="color:var(--err);margin-bottom:2px" onclick="removePriceRow(${i})">✕</button>`:''}
+    </div>`).join('');
+}
+function _updateSalePrice(i){const el=document.getElementById('sale-'+i);if(el){const v=priceRows[i].amount;el.textContent=v?'¥'+Math.round(v*0.3).toLocaleString():'—'}}
+function addPriceRow(){priceRows.push({label:'',amount:''});_drawPriceRows()}
+function removePriceRow(i){priceRows.splice(i,1);_drawPriceRows()}
+function getPriceRows(){return priceRows.filter(p=>p.amount).map(p=>({label:p.label||'定価',amount:parseFloat(p.amount)||0}))}
+
+// ===== 概要ブロック =====
+let overviewBlocks=[];
+function renderOverviewBlocks(){
+  document.getElementById('overview-blocks').innerHTML=overviewBlocks.map((b,i)=>{
+    if(b.type==='text') return`<div style="display:flex;gap:6px;margin-bottom:8px;align-items:flex-start">
+      <textarea class="ft" style="flex:1;min-height:80px" oninput="overviewBlocks[${i}].value=this.value">${esc(b.value)}</textarea>
+      <button class="btn btn-xs" style="color:var(--err);flex-shrink:0;margin-top:2px" onclick="removeOverviewBlock(${i})">✕</button></div>`;
+    if(b.type==='image') return`<div style="display:flex;gap:6px;margin-bottom:8px;align-items:center">
+      <img src="${b.value}" style="height:60px;border-radius:6px;border:.5px solid var(--border);object-fit:cover">
+      <span style="font-size:12px;color:var(--txt3);flex:1">画像</span>
+      <button class="btn btn-xs" style="color:var(--err)" onclick="removeOverviewBlock(${i})">✕</button></div>`;
+    return'';
+  }).join('');
+}
+function addOverviewText(){overviewBlocks.push({type:'text',value:''});renderOverviewBlocks()}
+function addOverviewImage(){
+  const inp=document.createElement('input');inp.type='file';inp.accept='image/*';
+  inp.onchange=async e=>{
+    const f=e.target.files[0];if(!f)return;
+    setSaveStatus('saving','画像をアップロード中...');
+    const url=await uploadImageToBlob(f,`overview-${Date.now()}.${f.name.split('.').pop()}`);
+    setSaveStatus('','');
+    overviewBlocks.push({type:'image',value:url});
+    renderOverviewBlocks();
+  };inp.click();
+}
+function removeOverviewBlock(i){overviewBlocks.splice(i,1);renderOverviewBlocks()}
 // ===== 画像アップロード（Blob） =====
 async function uploadImageToBlob(file, filename) {
   try {
@@ -845,33 +930,33 @@ async function saveProd(){
   const name=document.getElementById('f-pname').value.trim();
   const headline=document.getElementById('f-pheadline').value.trim();
   const desc=document.getElementById('f-pdesc').value.trim();
-  const price=parseFloat(document.getElementById('f-pprice').value)||0;
+  const sizeLabel=document.getElementById('f-psizelabel').value.trim();
   const catId=parseInt(document.getElementById('f-pcat').value);
   const colors=document.getElementById('f-pcolors').value.split(',').map(s=>s.trim()).filter(Boolean);
   const sizes=document.getElementById('f-psizes').value.split(',').map(s=>s.trim()).filter(Boolean);
-  // カラーとサイズは必須（商品名は空でも保存可）
   if(!colors.length){toast('カラーを1色以上入力してください');return}
   if(!sizes.length){toast('サイズを1つ以上入力してください');return}
+  // 複数価格
+  const prices=getPriceRows();
+  const price=prices.length?prices[0].amount:0; // 後方互換のため先頭を price にも保持
   const sizeTable=getSteData(), colorImgs={...tmpColorImgs};
-  // 商品IDをフィールドから取得（数値のみ抽出）
-  const pidRaw = document.getElementById('f-pid').value.replace(/\D/g,'');
-  const newId = pidRaw ? parseInt(pidRaw) : null;
+  // 概要ブロックのBase64画像をBlobに移行（保存時に自動変換）
+  const overview=overviewBlocks.map(b=>({...b}));
+  const pidRaw=document.getElementById('f-pid').value.replace(/\D/g,'');
+  const newId=pidRaw?parseInt(pidRaw):null;
   if(editProdId){
-    // 既存商品の更新
-    const prod = db.prods.find(x=>x.id===editProdId);
-    // IDが変更されていれば重複チェックして更新
-    if(newId && newId !== editProdId){
+    const prod=db.prods.find(x=>x.id===editProdId);
+    if(newId&&newId!==editProdId){
       if(db.prods.some(x=>x.id===newId)){toast('その商品IDはすでに使用されています');return}
-      prod.id = newId;
+      prod.id=newId;
     }
-    Object.assign(prod,{name,headline,desc,price,catId,colors,sizes,colorImgs,sizeTable});
+    Object.assign(prod,{name,headline,desc,price,prices,sizeLabel,catId,colors,sizes,colorImgs,sizeTable,overview});
     toast('商品を更新しました');
   } else {
-    // 新規追加
-    const useId = (newId && !db.prods.some(x=>x.id===newId)) ? newId : db.nextProdId;
-    if(newId && db.prods.some(x=>x.id===newId)){toast('その商品IDはすでに使用されています');return}
-    db.prods.push({id:useId, catId, name, headline, desc, price, colors, sizes, colorImgs, sizeTable, active:true});
-    db.nextProdId = Math.max(db.nextProdId, useId) + 1;
+    const useId=(newId&&!db.prods.some(x=>x.id===newId))?newId:db.nextProdId;
+    if(newId&&db.prods.some(x=>x.id===newId)){toast('その商品IDはすでに使用されています');return}
+    db.prods.push({id:useId,catId,name,headline,desc,price,prices,sizeLabel,colors,sizes,colorImgs,sizeTable,overview,active:true});
+    db.nextProdId=Math.max(db.nextProdId,useId)+1;
     toast('商品を追加しました');
   }
   closeModal(); renderAdmProds(); renderAdmCats(); renderTop();
@@ -1061,9 +1146,19 @@ async function execImport(){
   }
   await persistToServer();
   renderAdmProds(); renderAdmCats(); renderTop();
-  closeModal();
   btn.textContent='✓ この内容でインポート'; btn.disabled=false;
-  toast(`✓ インポート完了 — 更新: ${updatedCount}件、新規: ${addedCount}件`);
+  // 新規追加商品が1件なら編集画面を自動で開く
+  const newItems=importPlan.filter(x=>x.type==='new');
+  if(newItems.length===1){
+    const addedId=parseInt(newItems[0].productId)||null;
+    const added=addedId?db.prods.find(p=>p.id===addedId):null;
+    closeModal();
+    toast(`✓ インポート完了 — 更新: ${updatedCount}件、新規: ${addedCount}件`);
+    if(added) setTimeout(()=>openModal('prod',added.id),200);
+  } else {
+    closeModal();
+    toast(`✓ インポート完了 — 更新: ${updatedCount}件、新規: ${addedCount}件`);
+  }
 }
 
 function fileToBase64(file){
