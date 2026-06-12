@@ -924,7 +924,25 @@ async function handleImportFiles(fileList){
   for(const file of files){
     const relPath=file.webkitRelativePath||file.name;
     const parts=relPath.split('/');
-    const parentFolder=parts.length>=3?parts[parts.length-3]:(parts.length>=2?parts[parts.length-2]:'');
+    // webkitRelativePath の構造例:
+    //   選択フォルダ名/ファイル名          → parts.length===2 → カテゴリー不明
+    //   選択フォルダ名/商品フォルダ/ファイル → parts.length===3 → parts[1]が商品フォルダ、parts[0]がカテゴリー
+    //   カテゴリー/選択フォルダ/商品/ファイル → parts.length===4 → parts[1]がカテゴリー
+    // ファイルの2つ上のフォルダをカテゴリー候補とする（商品IDフォルダの親）
+    let parentFolder='';
+    if(parts.length>=4){
+      // カテゴリー / 商品フォルダ / ファイル のとき → ファイルから2つ上
+      parentFolder=parts[parts.length-3];
+    } else if(parts.length===3){
+      // 選択フォルダ / 商品フォルダ / ファイル のとき → 選択フォルダ名はルートなので商品フォルダの親を使う
+      // 商品フォルダ名が数字ハイフン数字パターン（例: 1105-01）なら、その親をカテゴリーとする
+      const prodFolder=parts[parts.length-2];
+      parentFolder=/^\d+-\d+$/.test(prodFolder)?parts[0]:prodFolder;
+    } else {
+      parentFolder='';
+    }
+    // 商品IDフォルダ自体（例: 1105-01）がparentFolderに入らないよう除外
+    if(/^\d+-\d+$/.test(parentFolder)) parentFolder='';
     const fileName=parts[parts.length-1];
     const m=fileName.match(/^(\d+)-\d+_(.+)\.(jpe?g|png|webp)$/i);
     if(!m){skipped.push(fileName);continue}
