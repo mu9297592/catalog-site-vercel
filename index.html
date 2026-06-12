@@ -450,6 +450,30 @@ function getColorHex(n){const c=db.colorMaster.find(x=>x.name===n);return c?c.he
 async function persistToServer(){
   setSaveStatus('saving','保存中...');
   try {
+    // 保存前にBase64画像を自動でBlobに移行する
+    const isBase64 = s => typeof s === 'string' && s.startsWith('data:image/');
+    const base64ToBlob = async (dataUrl, filename) => {
+      const arr=dataUrl.split(','), mime=arr[0].match(/:(.*?);/)[1];
+      const bstr=atob(arr[1]); let n=bstr.length;
+      const u8=new Uint8Array(n); while(n--)u8[n]=bstr.charCodeAt(n);
+      const file=new File([u8], filename, {type:mime});
+      return await uploadImageToBlob(file, filename);
+    };
+    for(const prod of db.prods){
+      if(!prod.colorImgs) continue;
+      for(const colorName of Object.keys(prod.colorImgs)){
+        if(isBase64(prod.colorImgs[colorName])){
+          const ext=prod.colorImgs[colorName].split(';')[0].split('/')[1]||'jpg';
+          prod.colorImgs[colorName]=await base64ToBlob(prod.colorImgs[colorName],`prod-${prod.id}-${colorName}-${Date.now()}.${ext}`);
+        }
+      }
+    }
+    for(const cat of db.cats){
+      if(isBase64(cat.img)){
+        const ext=cat.img.split(';')[0].split('/')[1]||'jpg';
+        cat.img=await base64ToBlob(cat.img,`cat-${cat.id}-${Date.now()}.${ext}`);
+      }
+    }
     const cred = btoa(`${ADMIN_ID}:${ADMIN_PW}`);
     const res = await fetch(API, {
       method: 'POST',
