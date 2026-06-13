@@ -54,3 +54,4 @@ module.exports.config = {
     bodyParser: false, // ストリームで受け取るために必須
   },
 };
+
