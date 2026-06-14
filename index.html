@@ -202,7 +202,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
       <p class="det-headline" id="det-headline"></p>
       <p class="det-title" id="det-name"></p>
       <p class="det-desc" id="det-desc"></p>
-      <div id="det-prices" style="display:none;flex-wrap:wrap;gap:16px;margin-bottom:14px"></div>
+      <div id="det-prices" style="display:none!important;flex-wrap:wrap;gap:16px;margin-bottom:14px"></div>
       <p id="det-sizelabel" style="display:none;font-size:12px;color:var(--txt3);margin-bottom:6px"></p>
       <div class="det-sec"><p class="det-lbl">カラー</p><div class="col-opts" id="det-colors"></div></div>
       <div class="det-sec"><p class="det-lbl">サイズ</p><div class="sz-opts" id="det-sizes"></div></div>
@@ -611,13 +611,9 @@ function showDet(prodId){
   hl.textContent=p.headline||''; hl.style.display=p.headline?'block':'none';
   document.getElementById('det-name').textContent=p.name;
   desc.textContent=p.desc||''; desc.style.display=p.desc?'block':'none';
-  // 複数価格表示
+  // 価格はユーザーに非表示
   const priceWrap=document.getElementById('det-prices');
-  if(priceWrap){
-    const prices=p.prices&&p.prices.length?p.prices:(p.price?[{label:'定価',amount:p.price}]:[]);
-    priceWrap.innerHTML=prices.map(pr=>`<div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:12px;color:var(--txt3)">${esc(pr.label)}</span><span style="font-size:18px;font-weight:600;color:var(--txt)">¥${Number(pr.amount).toLocaleString()}</span></div>`).join('');
-    priceWrap.style.display=prices.length?'flex':'none';
-  }
+  if(priceWrap) priceWrap.style.display='none';
   // SIZEラベル
   const slEl=document.getElementById('det-sizelabel');
   if(slEl){slEl.textContent=p.sizeLabel||'';slEl.style.display=p.sizeLabel?'block':'none';}
