@@ -338,6 +338,12 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
     </div>
     <div class="sec-box">
       <div class="sec-box-ttl">価格 <span class="admin-badge">管理者のみ</span></div>
+      <!-- ペーストエリア -->
+      <div style="margin-bottom:10px">
+        <label class="fl">スプレッドシートからペースト（ラベル・SIZE・価格の順）</label>
+        <textarea class="ft" id="price-paste-area" rows="3" placeholder="例：&#10;ナチュラル	S	¥ 470&#10;ホワイト	M	¥ 580" style="font-size:12px;font-family:monospace"></textarea>
+        <button class="btn btn-xs" onclick="parsePricePaste()" style="margin-top:4px">↑ 読み込む</button>
+      </div>
       <div id="price-rows"></div>
       <button class="btn btn-xs" onclick="addPriceRow()" style="margin-top:4px">＋ 価格を追加</button>
     </div>
@@ -763,7 +769,7 @@ function openModal(type,id){
     document.getElementById('f-psizelabel').value=p?p.sizeLabel||'':'';
     document.getElementById('f-pcolors').value=p?p.colors.join(','):'';
     // 複数価格
-    const initPrices=p&&p.prices&&p.prices.length?p.prices:(p&&p.price?[{label:'定価（税込）',amount:p.price}]:[{label:'定価（税込）',amount:''}]);
+    const initPrices=p&&p.prices&&p.prices.length?p.prices:(p&&p.price?[{label:'定価（税込）',size:'',amount:p.price}]:[{label:'',size:'',amount:''}]);
     renderPriceRows(initPrices);
     if(p)tmpColorImgs={...p.colorImgs};
     const sel=document.getElementById('f-pcat');
@@ -801,22 +807,54 @@ function updateColorPreview(){const h=document.getElementById('f-color-hex').val
 // ===== 複数価格 =====
 let priceRows=[];
 function renderPriceRows(initial){
-  priceRows=initial?initial.map(p=>({...p})):[{label:'定価（税込）',amount:''}];
+  priceRows=initial?initial.map(p=>({label:p.label||'',size:p.size||'',amount:p.amount||''})):[{label:'',size:'',amount:''}];
   _drawPriceRows();
 }
 function _drawPriceRows(){
-  document.getElementById('price-rows').innerHTML=priceRows.map((pr,i)=>`
-    <div style="display:flex;gap:6px;align-items:flex-end;margin-bottom:8px">
-      <div class="fg" style="flex:1;margin-bottom:0"><label class="fl">ラベル</label><input class="fi" value="${esc(pr.label)}" placeholder="例：定価（税込）" oninput="priceRows[${i}].label=this.value"></div>
-      <div class="fg" style="flex:1;margin-bottom:0"><label class="fl">金額（税込）</label><input class="fi" type="number" value="${pr.amount||''}" placeholder="例：3800" oninput="priceRows[${i}].amount=parseFloat(this.value)||0;_updateSalePrice(${i})"></div>
-      <div class="fg" style="flex:1;margin-bottom:0"><label class="fl">仕入れ価格（×0.3）</label><div class="price-calc-box"><span class="price-display" id="sale-${i}">${pr.amount?'¥'+Math.round(pr.amount*0.3).toLocaleString():'—'}</span></div></div>
-      ${priceRows.length>1?`<button class="btn btn-xs" style="color:var(--err);margin-bottom:2px" onclick="removePriceRow(${i})">✕</button>`:''}
+  // ヘッダー行（1行目のみ）
+  const header=`<div style="display:flex;gap:6px;margin-bottom:2px;padding:0 2px">
+    <div style="flex:1.5;font-size:11px;color:var(--txt3)">ラベル</div>
+    <div style="flex:0.8;font-size:11px;color:var(--txt3)">SIZE</div>
+    <div style="flex:1;font-size:11px;color:var(--txt3)">金額（税込）</div>
+    <div style="flex:1;font-size:11px;color:var(--txt3)">仕入れ価格（×0.3）</div>
+    <div style="width:28px"></div>
+  </div>`;
+  document.getElementById('price-rows').innerHTML=header+priceRows.map((pr,i)=>`
+    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+      <div style="flex:1.5"><input class="fi" style="margin-bottom:0" value="${esc(pr.label)}" placeholder="ナチュラル" oninput="priceRows[${i}].label=this.value"></div>
+      <div style="flex:0.8"><input class="fi" style="margin-bottom:0" value="${esc(pr.size||'')}" placeholder="S" oninput="priceRows[${i}].size=this.value"></div>
+      <div style="flex:1"><input class="fi" style="margin-bottom:0" type="number" value="${pr.amount||''}" placeholder="470" oninput="priceRows[${i}].amount=parseFloat(this.value)||0;_updateSalePrice(${i})"></div>
+      <div style="flex:1"><div class="price-calc-box" style="margin-bottom:0"><span class="price-display" id="sale-${i}">${pr.amount?'¥'+Math.round(pr.amount*0.3).toLocaleString():'—'}</span></div></div>
+      <div style="width:28px;text-align:center">${priceRows.length>1?`<button class="btn btn-xs" style="color:var(--err);padding:2px 6px" onclick="removePriceRow(${i})">✕</button>`:''}</div>
     </div>`).join('');
 }
 function _updateSalePrice(i){const el=document.getElementById('sale-'+i);if(el){const v=priceRows[i].amount;el.textContent=v?'¥'+Math.round(v*0.3).toLocaleString():'—'}}
-function addPriceRow(){priceRows.push({label:'',amount:''});_drawPriceRows()}
+function addPriceRow(){priceRows.push({label:'',size:'',amount:''});_drawPriceRows()}
 function removePriceRow(i){priceRows.splice(i,1);_drawPriceRows()}
-function getPriceRows(){return priceRows.filter(p=>p.amount).map(p=>({label:p.label||'定価',amount:parseFloat(p.amount)||0}))}
+function getPriceRows(){return priceRows.filter(p=>p.amount).map(p=>({label:p.label||'',size:p.size||'',amount:parseFloat(p.amount)||0}))}
+function parsePricePaste(){
+  const txt=document.getElementById('price-paste-area').value.trim();
+  if(!txt)return;
+  const lines=txt.split('\n').map(l=>l.trim()).filter(Boolean);
+  const parsed=[];
+  for(const line of lines){
+    const cols=line.split('\t').map(s=>s.trim());
+    // 列数が2以上あれば解析（ラベル / SIZE? / 価格）
+    if(cols.length<2) continue;
+    let label='',size='',amountStr='';
+    if(cols.length>=3){label=cols[0];size=cols[1];amountStr=cols[2];}
+    else{label=cols[0];amountStr=cols[1];}
+    // ¥・カンマ・スペース除去して数値化
+    const amount=parseFloat(amountStr.replace(/[¥,\s]/g,''))||0;
+    if(!amount) continue;
+    parsed.push({label,size,amount});
+  }
+  if(!parsed.length){toast('解析できる行がありませんでした');return}
+  priceRows=parsed;
+  _drawPriceRows();
+  document.getElementById('price-paste-area').value='';
+  toast(`${parsed.length}件の価格を読み込みました`);
+}
 
 // ===== 概要ブロック =====
 let overviewBlocks=[];
