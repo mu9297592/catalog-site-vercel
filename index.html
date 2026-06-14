@@ -263,6 +263,20 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
             <button class="btn btn-p btn-sm" onclick="openModal('prod',null)">＋ 追加</button>
           </div>
         </div>
+        <!-- フィルターバー -->
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center">
+          <select class="fi" id="filter-cat" onchange="renderAdmProds()" style="flex:1;min-width:120px;max-width:180px;margin-bottom:0">
+            <option value="">すべてのカテゴリー</option>
+          </select>
+          <select class="fi" id="filter-sort" onchange="renderAdmProds()" style="flex:1;min-width:150px;max-width:200px;margin-bottom:0">
+            <option value="">並び順（デフォルト）</option>
+            <option value="price-asc">定価：安い順</option>
+            <option value="price-desc">定価：高い順</option>
+            <option value="purchase-asc">仕入れ価格：安い順</option>
+            <option value="purchase-desc">仕入れ価格：高い順</option>
+          </select>
+          <button class="btn btn-sm" onclick="clearProdFilters()" style="color:var(--txt3)">✕ リセット</button>
+        </div>
         <table class="tbl" id="prod-tbl"></table>
       </div>
       <div class="adm-sec" id="adm-colors">
@@ -664,15 +678,41 @@ function renderAdmCats(){
     }).join('');
 }
 function renderAdmProds(){
+  // カテゴリーフィルター選択肢を更新
+  const catSel=document.getElementById('filter-cat');
+  if(catSel){
+    const cur=catSel.value;
+    catSel.innerHTML='<option value="">すべてのカテゴリー</option>'+
+      db.cats.map(c=>`<option value="${c.id}">${c.name}</option>`).join('');
+    catSel.value=cur;
+  }
+  const filterCat=catSel?catSel.value:'';
+  const filterSort=document.getElementById('filter-sort')?document.getElementById('filter-sort').value:'';
+
+  let prods=[...db.prods];
+  // カテゴリーフィルター
+  if(filterCat) prods=prods.filter(p=>String(p.catId)===filterCat);
+  // ソート
+  const getPrice=p=>p.prices&&p.prices.length?p.prices[0].amount:(p.price||0);
+  if(filterSort==='price-asc') prods.sort((a,b)=>getPrice(a)-getPrice(b));
+  else if(filterSort==='price-desc') prods.sort((a,b)=>getPrice(b)-getPrice(a));
+  else if(filterSort==='purchase-asc') prods.sort((a,b)=>getPrice(a)*0.3-getPrice(b)*0.3);
+  else if(filterSort==='purchase-desc') prods.sort((a,b)=>getPrice(b)*0.3-getPrice(a)*0.3);
+
   document.getElementById('prod-tbl').innerHTML=`<tr><th>ID</th><th>画像</th><th>商品名</th><th>カテゴリー</th><th>定価</th><th>仕入れ価格</th><th>状態</th><th>操作</th></tr>`+
-    db.prods.map(p=>{
+    prods.map(p=>{
       const cat=db.cats.find(c=>c.id===p.catId),fc=p.colors[0],img=p.colorImgs[fc];
       const th=img?`<img src="${img}" class="tbl-thumb">`:`<div class="tbl-thumb-wrap">${getCatEmoji(cat?cat.name:'')}</div>`;
+      const price=getPrice(p);
+      const priceLabel=p.prices&&p.prices.length>1
+        ?p.prices.map(pr=>`<div style="font-size:11px"><span style="color:var(--txt3)">${pr.label}:</span> ¥${Number(pr.amount).toLocaleString()}</div>`).join('')
+        :`¥${price.toLocaleString()}`;
       return`<tr>
         <td><span class="id-badge">P${String(p.id).padStart(4,'0')}</span></td><td>${th}</td>
         <td style="color:var(--txt);font-weight:500;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</td>
-        <td>${cat?cat.name:'—'}</td><td>¥${(p.price||0).toLocaleString()}</td>
-        <td style="font-weight:500;color:var(--txt)">${p.price?`¥${Math.round(p.price*0.3).toLocaleString()}`:'—'}</td>
+        <td>${cat?cat.name:'—'}</td>
+        <td>${priceLabel}</td>
+        <td style="font-weight:500;color:var(--txt)">${price?`¥${Math.round(price*0.3).toLocaleString()}`:'—'}</td>
         <td><span class="bdg ${p.active?'bdg-on':'bdg-off'}">${p.active?'表示':'非表示'}</span></td>
         <td><div style="display:flex;gap:5px;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="openModal('prod',${p.id})">編集</button>
@@ -680,6 +720,11 @@ function renderAdmProds(){
           <button class="btn btn-sm" style="color:var(--err)" onclick="delProd(${p.id})">削除</button>
         </div></td></tr>`;
     }).join('');
+}
+function clearProdFilters(){
+  const cs=document.getElementById('filter-cat'),ss=document.getElementById('filter-sort');
+  if(cs)cs.value=''; if(ss)ss.value='';
+  renderAdmProds();
 }
 function renderAdmColors(){
   document.getElementById('color-tbl').innerHTML=`<tr><th>スウォッチ</th><th>カラー名</th><th>HEX値</th><th>操作</th></tr>`+
