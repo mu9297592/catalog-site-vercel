@@ -710,15 +710,15 @@ function renderAdmProds(){
       const cat=db.cats.find(c=>c.id===p.catId),fc=p.colors[0],img=p.colorImgs[fc];
       const th=img?`<img src="${img}" class="tbl-thumb">`:`<div class="tbl-thumb-wrap">${getCatEmoji(cat?cat.name:'')}</div>`;
       const price=getPrice(p);
-      const priceLabel=p.prices&&p.prices.length>1
-        ?p.prices.map(pr=>`<div style="font-size:11px"><span style="color:var(--txt3)">${pr.label}:</span> ¥${Number(pr.amount).toLocaleString()}</div>`).join('')
-        :`¥${price.toLocaleString()}`;
+      const allPrices=p.prices&&p.prices.length?p.prices.map(pr=>pr.amount):[price];
+      const minPrice=Math.min(...allPrices.filter(v=>v>0));
+      const priceLabel=minPrice?`¥${minPrice.toLocaleString()}`:'—';
       return`<tr>
         <td><span class="id-badge">P${String(p.id).padStart(4,'0')}</span></td><td>${th}</td>
         <td style="color:var(--txt);font-weight:500;max-width:120px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.name}</td>
         <td>${cat?cat.name:'—'}</td>
         <td>${priceLabel}</td>
-        <td style="font-weight:500;color:var(--txt)">${price?`¥${Math.round(price*0.3).toLocaleString()}`:'—'}</td>
+        <td style="font-weight:500;color:var(--txt)">${minPrice?`¥${Math.round(minPrice*0.3).toLocaleString()}`:'—'}</td>
         <td><span class="bdg ${p.active?'bdg-on':'bdg-off'}">${p.active?'表示':'非表示'}</span></td>
         <td><div style="display:flex;gap:5px;flex-wrap:wrap">
           <button class="btn btn-sm" onclick="openModal('prod',${p.id})">編集</button>
