@@ -883,12 +883,13 @@ function removeOverviewBlock(i){overviewBlocks.splice(i,1);renderOverviewBlocks(
 async function uploadImageToBlob(file, filename) {
   try {
     const cred = btoa(`${ADMIN_ID}:${ADMIN_PW}`);
+    const safeFilename = encodeURIComponent(filename);
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: {
         'Authorization': `Basic ${cred}`,
         'Content-Type': file.type || 'image/jpeg',
-        'X-Filename': filename,
+        'X-Filename': safeFilename,
       },
       body: file,
     });
