@@ -54,53 +54,34 @@ function extractBodyText(html) {
   return m ? stripTags(m[1]).trim() : null;
 }
 
-// ===== 価格パース =====
-// 価格行テキストをラベル/SIZE/金額に分解する
-// 例: "ホワイト S ¥2,200（税込）" → {label:'ホワイト', size:'S', amount:2200}
-// 例: "OPEN PRICE" → {label:'', size:'', amount:0, openPrice:true}
-const SIZE_PATTERN = /\b(XS|S|M|L|XL|XXL|XXXL|3XL|4XL|5XL|フリー|F)\b/i;
-const COLOR_KEYWORDS = ['ホワイト','ブラック','ネイビー','グレー','レッド','ブルー','グリーン','イエロー','ピンク','ベージュ','ブラウン','オレンジ','パープル','ゴールド','シルバー','ナチュラル','アイボリー','カーキ','ターコイズ','ラベンダー','ミント','サックス','バーガンディ','インディゴ','スミ','アッシュ','オリーブ','キャメル','カナリア','メロン','コバルト'];
+// ===== 価格パース: <dd class="price"> 内のテーブル行を解析 =====
+// 例: <tr><td>S ～ XL</td><td>¥ 4,970</td></tr>
+//  → {label:'S ～ XL', size:'', amount:4970}
+function extractPrices(html) {
+  const ddMatch = html.match(/<dd[^>]*class=["']price["'][^>]*>([\s\S]*?)<\/dd>/i);
+  if (!ddMatch) return [];
 
-function parsePriceLine(text) {
-  text = text.trim();
-  if (!text) return null;
+  const content = ddMatch[1];
+  const results = [];
 
-  // OPEN PRICEのみの行
-  if (/OPEN\s*PRICE/i.test(text)) {
-    return { label: '', size: '', amount: 0, openPrice: true };
+  // テーブル構造の場合：<tr>ごとに処理
+  if (/<table/i.test(content)) {
+    const trMatches = [...content.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+    for (const trMatch of trMatches) {
+      const tdMatches = [...trMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
+      if (tdMatches.length < 2) continue;
+
+      const labelRaw = stripTags(tdMatches[0][1]).replace(/\s+/g,' ').trim();
+      const amountRaw = stripTags(tdMatches[1][1]).replace(/[^0-9]/g,'');
+      const amount = amountRaw ? parseInt(amountRaw) : 0;
+
+      if (!labelRaw && !amount) continue;
+      results.push({ label: labelRaw, size: '', amount });
+    }
+    return results;
   }
 
-  // ¥ 表記から金額を抽出
-  const priceMatch = text.match(/[¥￥]\s*([\d,]+)/);
-  const amount = priceMatch ? parseInt(priceMatch[1].replace(/,/g, '')) : 0;
-
-  // SIZEを抽出
-  const sizeMatch = text.match(SIZE_PATTERN);
-  const size = sizeMatch ? sizeMatch[1].toUpperCase() : '';
-
-  // カラー名を抽出（テキストからサイズ・価格・記号を除いた残り）
-  let label = text
-    .replace(/[¥￥][\d,]+[^\s]*/g, '')
-    .replace(SIZE_PATTERN, '')
-    .replace(/（税込）|（税抜）|\(税込\)|\(税抜\)/g, '')
-    .replace(/OPEN\s*PRICE/gi, '')
-    .replace(/[¥￥\s,、・]/g, ' ')
-    .trim();
-
-  // よく知られた色名が含まれているか確認
-  const hasColor = COLOR_KEYWORDS.some(c => label.includes(c));
-  if (!hasColor && !size && !amount) return null;
-
-  return { label, size, amount };
-}
-
-// <dd class="price"> から複数価格行をパース
-function extractPrices(html) {
-  const m = html.match(/<dd[^>]*class=["']price["'][^>]*>([\s\S]*?)<\/dd>/i);
-  if (!m) return [];
-
-  const content = m[1];
-  // <li>ごとに分割、なければ<br>で分割
+  // テーブルなし：<li> or <br> で分割
   let lines = [];
   if (/<li/i.test(content)) {
     lines = [...content.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi)].map(x => stripTags(x[1]));
@@ -108,16 +89,13 @@ function extractPrices(html) {
     lines = content.split(/<br\s*\/?>/i).map(l => stripTags(l));
   }
 
-  const results = [];
   for (const line of lines) {
-    const parsed = parsePriceLine(line);
-    if (parsed) results.push(parsed);
-  }
-
-  // 価格行がなく、テキストにOPEN PRICEがあればそのまま
-  if (!results.length) {
-    const raw = stripTags(content).trim();
-    if (raw) results.push({ label: raw, size: '', amount: 0 });
+    const text = line.trim();
+    if (!text) continue;
+    const priceMatch = text.match(/[¥￥]\s*([\d,]+)/);
+    const amount = priceMatch ? parseInt(priceMatch[1].replace(/,/g,'')) : 0;
+    const label = text.replace(/[¥￥][\d,\s]+/g,'').replace(/（税込）|\(税込\)/g,'').trim();
+    if (label || amount) results.push({ label, size: '', amount });
   }
 
   return results;
