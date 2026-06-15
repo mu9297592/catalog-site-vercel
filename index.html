@@ -834,16 +834,25 @@ async function scrapeUrl(){
     if(!json.ok) throw new Error(json.error||'取込失敗');
     const d=json.data;
 
-    // 各フィールドに反映
+    // 商品名
     if(d.name) document.getElementById('f-pname').value=d.name;
+    // 見出し
     if(d.headline) document.getElementById('f-pheadline').value=d.headline;
+    // 説明文
     if(d.desc) document.getElementById('f-pdesc').value=d.desc;
 
-    // 価格
-    if(d.price){
-      priceRows=[{label:'定価（税込）',size:'',amount:d.price}];
+    // 複数価格（label/size/amount）
+    if(d.prices&&d.prices.length){
+      priceRows=d.prices.map(p=>({
+        label:p.label||'',
+        size:p.size||'',
+        amount:p.amount||0
+      }));
       _drawPriceRows();
     }
+
+    // サイズ一覧（tb_sizeのth列名をカンマ区切りで）
+    if(d.sizeList) document.getElementById('f-psizes').value=d.sizeList;
 
     // サイズ表
     if(d.sizeTable){
@@ -857,8 +866,17 @@ async function scrapeUrl(){
       renderOverviewBlocks();
     }
 
+    const fields=[];
+    if(d.name) fields.push('商品名');
+    if(d.headline) fields.push('見出し');
+    if(d.desc) fields.push('説明文');
+    if(d.prices&&d.prices.length) fields.push(`価格${d.prices.length}件`);
+    if(d.sizeList) fields.push('サイズ一覧');
+    if(d.sizeTable) fields.push('サイズ表');
+    if(d.overview&&d.overview.length) fields.push(`概要${d.overview.length}ブロック`);
+
     statusEl.style.color='var(--ok)';
-    statusEl.textContent=`✓ 取込完了 — 商品名・価格・説明・サイズ表・概要を反映しました`;
+    statusEl.textContent=`✓ 取込完了 — ${fields.join('・')}を反映しました`;
     toast('URLから取込完了');
   }catch(e){
     statusEl.style.color='var(--err)';
