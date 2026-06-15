@@ -184,8 +184,8 @@ module.exports = async function handler(req, res) {
 
     const html = await response.text();
 
-    // 価格のRAW HTMLをデバッグ用に取得
-    const priceRawHtml = (html.match(/<dd[^>]*class=["']price["'][^>]*>([\s\S]*?)<\/dd>/i)||['',''])[0].slice(0,500);
+    // サイズ表のRAW HTMLをデバッグ用に取得
+    const sizeTableRaw = (html.match(/<table[^>]*class=["']tb_size["'][^>]*>([\s\S]*?)<\/table>/i)||[''])[0].slice(0,1000);
 
     const name      = extractName(html);
     const headline  = extractHeadline(html);
@@ -215,7 +215,7 @@ module.exports = async function handler(req, res) {
         sizeList,
         overview,
         sizeTable: sizeTable ? { cols: sizeTable.cols, rows: sizeTable.rows } : null,
-        _priceRaw: priceRawHtml,
+        _sizeTableRaw: sizeTableRaw,
       }
     });
 
