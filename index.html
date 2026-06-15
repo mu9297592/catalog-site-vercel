@@ -282,6 +282,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
       <div class="adm-sec" id="adm-colors">
         <div class="adm-hdr"><span class="adm-ttl">カラーマスター</span><button class="btn btn-p btn-sm" onclick="openModal('color',null)">＋ カラーを追加</button></div>
         <p style="font-size:12px;color:var(--txt3);margin-bottom:12px">ここで登録したカラーは商品編集時に自動でカラードットに反映されます</p>
+        <div id="unregistered-colors-box" style="display:none;background:var(--err-bg);border:.5px solid var(--err);border-radius:var(--radius-sm);padding:12px 14px;margin-bottom:14px">
+          <p style="font-size:12px;font-weight:600;color:var(--err);margin-bottom:8px">⚠ 未登録カラー（カラードットが灰色になっています）</p>
+          <div id="unregistered-colors-list" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px"></div>
+          <button class="btn btn-sm btn-acc" onclick="bulkAddUnregisteredColors()">まとめてカラーマスターに追加</button>
+        </div>
         <table class="tbl" id="color-tbl"></table>
       </div>
       <div class="adm-sec" id="adm-migrate">
@@ -489,7 +494,44 @@ const ADMIN_PW = 'zZ8$ePmy#ZYO';
 let tmpCatImg=null, tmpColorImgs={};
 let steState={cols:[],rows:[]};
 
-function getColorHex(n){const c=db.colorMaster.find(x=>x.name===n);return c?c.hex:(DEFAULT_CMAP[n]||'#cccccc')}
+const COLOR_KEYWORD_MAP=[
+  {keys:['ホワイト','WHITE','白','アイボリー','バニラ','クリーム','オフホワイト','フロスト','ナチュラル','ミルク','パール','アイボ'],hex:'#F2F1EE'},
+  {keys:['ブラック','BLACK','黒','スミ','墨','チャコール','グラファイト'],hex:'#2A2A2A'},
+  {keys:['ネイビー','NAVY','紺','クラシックネイビー','インディゴ','デニム','マリン','ミッドナイト'],hex:'#1A3A5C'},
+  {keys:['グレー','グレイ','GRAY','GREY','灰','シルバー','スレート','アッシュ','ヘザー','ストーン','モクグ'],hex:'#888780'},
+  {keys:['ブルー','BLUE','青','サックス','スカイ','ロイヤル','コバルト','アクア','ターコイズ','ティール','ストレートブルー'],hex:'#2980B9'},
+  {keys:['レッド','RED','赤','スカーレット','バーガンディ','クリムゾン','バーガ'],hex:'#C0392B'},
+  {keys:['グリーン','GREEN','緑','カーキ','オリーブ','モスグ','フォレスト','セージ','ミント','アーミー'],hex:'#4A7C3F'},
+  {keys:['ブラウン','BROWN','茶','ベージュ','キャメル','タン','サンド','シナモン','モカ','アーモンド'],hex:'#A07850'},
+  {keys:['ピンク','PINK','桜','ローズ','コーラル','サーモン','マゼンタ'],hex:'#D4708A'},
+  {keys:['パープル','PURPLE','紫','バイオレット','プラム'],hex:'#7C3AED'},
+  {keys:['オレンジ','ORANGE','橙','アンバー','テラコッタ'],hex:'#E67E22'},
+  {keys:['イエロー','YELLOW','黄','ゴールド','マスタード','レモン'],hex:'#D4A017'},
+];
+function normalizeColorName(s){
+  // 不可視文字・ゼロ幅スペース・改行・タブ・全角スペース・半角スペースを除去
+  return (s||'').replace(/[​-‍﻿ 　
+	]/g,'').trim();
+}
+function getColorHex(n){
+  if(!n) return '#AAAAAA';
+  const nn=normalizeColorName(n);
+  if(!nn) return '#AAAAAA';
+  // 1. colorMaster 完全一致（正規化後）
+  const c=db.colorMaster.find(x=>normalizeColorName(x.name)===nn);
+  if(c) return c.hex;
+  // 2. DEFAULT_CMAP 完全一致
+  if(DEFAULT_CMAP[nn]) return DEFAULT_CMAP[nn];
+  // 3. colorMaster 部分一致
+  const cm=db.colorMaster.find(x=>{const xn=normalizeColorName(x.name);return xn.includes(nn)||nn.includes(xn)});
+  if(cm) return cm.hex;
+  // 4. キーワードマッピングで色を推定
+  const nu=nn.toUpperCase();
+  for(const entry of COLOR_KEYWORD_MAP){
+    if(entry.keys.some(k=>nn.includes(k)||nu.includes(k.toUpperCase()))) return entry.hex;
+  }
+  return '#AAAAAA';
+}
 
 // ===== サーバー保存 =====
 async function persistToServer(){
@@ -634,10 +676,10 @@ function showDet(prodId){
   const slEl=document.getElementById('det-sizelabel');
   if(slEl){slEl.textContent=p.sizeLabel||'';slEl.style.display=p.sizeLabel?'block':'none';}
   setDetImg(p,p.colors[0]);
-  document.getElementById('det-colors').innerHTML=p.colors.map((c,i)=>`
-    <div class="col-opt ${i===0?'sel':''}" id="co-${i}" onclick="selColor(${i},'${c}',${p.colors.length},${p.id})">
-      <div class="col-sw" style="background:${getColorHex(c)}"></div>
-      <span class="col-nm">${c}</span></div>`).join('');
+  document.getElementById('det-colors').innerHTML=p.colors.map((c,i)=>{const nc=normalizeColorName(c);return`
+    <div class="col-opt ${i===0?'sel':''}" id="co-${i}" onclick="selColor(${i},'${nc}',${p.colors.length},${p.id})">
+      <div class="col-sw" style="background:${getColorHex(nc)}"></div>
+      <span class="col-nm">${nc}</span></div>`}).join('');
   document.getElementById('det-sizes').innerHTML=p.sizes.map((s,i)=>`<div class="sz-opt ${i===0?'sel':''}" id="so-${i}" onclick="selSize(${i},${p.sizes.length})">${s}</div>`).join('');
   const stw=document.getElementById('det-sizetbl-wrap');
   if(p.sizeTable&&p.sizeTable.cols.length){stw.style.display='block';document.getElementById('det-sizetbl').innerHTML=renderSizeTblHTML(p.sizeTable)}
@@ -754,6 +796,46 @@ function renderAdmColors(){
         <button class="btn btn-sm" onclick="openModal('color',${c.id})">編集</button>
         <button class="btn btn-sm" style="color:var(--err)" onclick="delColor(${c.id})">削除</button>
       </div></td></tr>`).join('');
+  // 未登録カラーを検出して警告表示（正規化して比較）
+  const registered=new Set(db.colorMaster.map(x=>normalizeColorName(x.name)));
+  const unregistered=new Map(); // rawName -> normalizedName
+  db.prods.forEach(p=>(p.colors||[]).forEach(c=>{
+    const nc=normalizeColorName(c);
+    if(!registered.has(nc)&&!DEFAULT_CMAP[nc]) unregistered.set(c, nc);
+  }));
+  const box=document.getElementById('unregistered-colors-box');
+  const list=document.getElementById('unregistered-colors-list');
+  if(unregistered.size>0){
+    box.style.display='block';
+    list.innerHTML=[...unregistered.entries()].map(([raw,nc])=>{
+      const hex=getColorHex(raw);
+      // 不可視文字の有無を表示
+      const hasHidden=raw!==nc;
+      return`<div style="display:flex;align-items:center;gap:5px;padding:4px 9px;background:var(--bg);border:.5px solid var(--border2);border-radius:99px;font-size:12px">
+        <div style="width:14px;height:14px;border-radius:50%;background:${hex};border:.5px solid rgba(0,0,0,.12);flex-shrink:0"></div>
+        <span>${esc(raw)}${hasHidden?'<span style="color:var(--err);font-size:10px;margin-left:3px">[不可視文字あり]</span>':''}</span></div>`;
+    }).join('');
+  } else {
+    box.style.display='none';
+  }
+}
+function bulkAddUnregisteredColors(){
+  const registered=new Set(db.colorMaster.map(x=>normalizeColorName(x.name)));
+  const toAdd=new Map();
+  db.prods.forEach(p=>(p.colors||[]).forEach(c=>{
+    const nc=normalizeColorName(c);
+    if(!registered.has(nc)&&!DEFAULT_CMAP[nc]) toAdd.set(nc,c);
+  }));
+  if(!toAdd.size){toast('未登録カラーはありません');return}
+  toAdd.forEach((raw,nc)=>{
+    const hex=getColorHex(raw);
+    db.colorMaster.push({id:db.nextColorId++,name:nc,hex});
+  });
+  // 商品のcolors配列も正規化して整合性を保つ
+  db.prods.forEach(p=>{p.colors=(p.colors||[]).map(c=>normalizeColorName(c)).filter(Boolean)});
+  renderAdmColors();
+  toast(`✓ ${toAdd.size}件のカラーを追加しました`);
+  persistToServer();
 }
 
 // ===== MODAL =====
@@ -990,7 +1072,7 @@ async function uploadImageToBlob(file, filename) {
 
 function handleCatImg(e){const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=ev=>{tmpCatImg=ev.target.result;const prv=document.getElementById('cat-img-prv');prv.src=tmpCatImg;prv.style.display='block';document.getElementById('cat-img-icon').style.display='none';document.getElementById('cat-img-lbl').textContent='クリックして変更'};r.readAsDataURL(f)}
 function renderColorImgRows(){
-  const colors=document.getElementById('f-pcolors').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const colors=document.getElementById('f-pcolors').value.split(',').map(s=>normalizeColorName(s)).filter(Boolean);
   document.getElementById('color-img-rows').innerHTML=colors.map(c=>{
     const hex=getColorHex(c),img=tmpColorImgs[c];
     const ph=img?`<img src="${img}" class="ci-img-preview">`:`<div class="ci-ph">未設定</div>`;
@@ -1097,7 +1179,7 @@ async function saveProd(){
   const desc=document.getElementById('f-pdesc').value.trim();
   const sizeLabel=document.getElementById('f-psizelabel').value.trim();
   const catId=parseInt(document.getElementById('f-pcat').value);
-  const colors=document.getElementById('f-pcolors').value.split(',').map(s=>s.trim()).filter(Boolean);
+  const colors=document.getElementById('f-pcolors').value.split(',').map(s=>normalizeColorName(s)).filter(Boolean);
   const sizes=document.getElementById('f-psizes').value.split(',').map(s=>s.trim()).filter(Boolean);
   if(!colors.length){toast('カラーを1色以上入力してください');return}
   if(!sizes.length){toast('サイズを1つ以上入力してください');return}
