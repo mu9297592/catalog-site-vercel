@@ -323,6 +323,19 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
   <!-- PROD -->
   <div class="modal" id="m-prod" style="display:none">
     <p class="modal-ttl" id="m-prod-ttl">商品を追加</p>
+
+    <!-- URL取込 -->
+    <div class="sec-box" style="background:var(--accent-bg);border-color:var(--accent);margin-bottom:14px">
+      <div class="sec-box-ttl" style="color:var(--accent)">🔗 URLから自動取込</div>
+      <div style="display:flex;gap:8px;align-items:flex-end">
+        <div class="fg" style="flex:1;margin-bottom:0">
+          <label class="fl">商品ページのURL（ユナイテッドアスレ等）</label>
+          <input class="fi" id="f-scrape-url" placeholder="https://united-athle.jp/ua/item/175901/" style="margin-bottom:0">
+        </div>
+        <button class="btn btn-acc" id="scrape-btn" onclick="scrapeUrl()" style="flex-shrink:0;margin-bottom:0">取込</button>
+      </div>
+      <div id="scrape-status" style="font-size:12px;margin-top:6px;display:none"></div>
+    </div>
     <div class="sec-box" style="margin-bottom:14px">
       <div class="sec-box-ttl">商品ID <span class="admin-badge">管理者のみ</span></div>
       <input class="fi" id="f-pid" style="font-family:monospace;letter-spacing:.04em" placeholder="例：140601（数値のみ）">
@@ -468,11 +481,9 @@ const DEFAULT_CMAP={
 // ===== API =====
 // Vercel デプロイ用
 const API = '/api/data';
-const ADMIN_ID = 'fusionia';
-const ADMIN_PW = 'zZ8$ePmy#ZYO';
-
 let db = null; // サーバーから取得後に設定
 let authed = false, editCatId=null, editProdId=null, editColorId=null;
+let sessionToken = null; // ログイン後にサーバーから取得したトークン
 let tmpCatImg=null, tmpColorImgs={};
 let steState={cols:[],rows:[]};
 
@@ -506,12 +517,11 @@ async function persistToServer(){
         cat.img=await base64ToBlob(cat.img,`cat-${cat.id}-${Date.now()}.${ext}`);
       }
     }
-    const cred = btoa(`${ADMIN_ID}:${ADMIN_PW}`);
     const res = await fetch(API, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': `Basic ${cred}`
+        'X-Token': sessionToken
       },
       body: JSON.stringify(db)
     });
@@ -560,14 +570,31 @@ function getLocalFallback(){
 
 // ===== AUTH =====
 function tryAdmin(){if(authed)showAdm();else{showPg('login');setBc([])}}
-function doLogin(){
-  if(document.getElementById('l-id').value===ADMIN_ID && document.getElementById('l-pw').value===ADMIN_PW){
-    authed=true; document.getElementById('login-err').style.display='none'; showAdm();
-  } else {
-    document.getElementById('login-err').style.display='block';
+async function doLogin(){
+  const id=document.getElementById('l-id').value.trim();
+  const pw=document.getElementById('l-pw').value;
+  const errEl=document.getElementById('login-err');
+  const btn=document.querySelector('#m-login .btn-p');
+  btn.disabled=true; btn.textContent='確認中...';
+  try{
+    const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,pw})});
+    const data=await res.json();
+    if(data.ok&&data.token){
+      sessionToken=data.token;
+      authed=true;
+      errEl.style.display='none';
+      closeModal();
+      showAdm();
+    } else {
+      errEl.style.display='block';
+    }
+  }catch(e){
+    errEl.style.display='block';
+  } finally {
+    btn.disabled=false; btn.textContent='ログイン';
   }
 }
-function doLogout(){authed=false;goTop();toast('ログアウトしました')}
+function doLogout(){authed=false;sessionToken=null;goTop();toast('ログアウトしました')}
 
 // ===== NAV =====
 function showPg(id){document.querySelectorAll('.pg').forEach(p=>p.classList.remove('on'));document.getElementById('pg-'+id).classList.add('on')}
@@ -800,6 +827,58 @@ function syncColorFromPicker(){const h=document.getElementById('f-color-hex').va
 function syncColorFromText(){const t=document.getElementById('f-color-hex-txt').value.trim();if(/^#[0-9A-Fa-f]{6}$/.test(t))document.getElementById('f-color-hex').value=t;updateColorPreview()}
 function updateColorPreview(){const h=document.getElementById('f-color-hex').value;document.getElementById('f-color-hex-txt').value=h;document.getElementById('color-preview-dot').style.background=h;document.getElementById('color-preview-name').textContent=document.getElementById('f-color-name').value||'プレビュー'}
 
+// ===== URL取込（スクレイピング） =====
+async function scrapeUrl(){
+  const url=document.getElementById('f-scrape-url').value.trim();
+  if(!url){toast('URLを入力してください');return}
+  const btn=document.getElementById('scrape-btn');
+  const statusEl=document.getElementById('scrape-status');
+  btn.disabled=true; btn.textContent='取込中...';
+  statusEl.style.display='block'; statusEl.style.color='var(--txt3)'; statusEl.textContent='サイトからデータを取得しています...';
+  try{
+    const res=await fetch('/api/scrape',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','X-Token':sessionToken},
+      body:JSON.stringify({url})
+    });
+    const json=await res.json();
+    if(!json.ok) throw new Error(json.error||'取込失敗');
+    const d=json.data;
+
+    // 各フィールドに反映
+    if(d.name) document.getElementById('f-pname').value=d.name;
+    if(d.headline) document.getElementById('f-pheadline').value=d.headline;
+    if(d.desc) document.getElementById('f-pdesc').value=d.desc;
+
+    // 価格
+    if(d.price){
+      priceRows=[{label:'定価（税込）',size:'',amount:d.price}];
+      _drawPriceRows();
+    }
+
+    // サイズ表
+    if(d.sizeTable){
+      steState=d.sizeTable;
+      renderSteTable();
+    }
+
+    // 概要ブロック
+    if(d.overview&&d.overview.length){
+      overviewBlocks=d.overview.map(b=>({...b}));
+      renderOverviewBlocks();
+    }
+
+    statusEl.style.color='var(--ok)';
+    statusEl.textContent=`✓ 取込完了 — 商品名・価格・説明・サイズ表・概要を反映しました`;
+    toast('URLから取込完了');
+  }catch(e){
+    statusEl.style.color='var(--err)';
+    statusEl.textContent=`✗ エラー: ${e.message}`;
+  } finally {
+    btn.disabled=false; btn.textContent='取込';
+  }
+}
+
 // ===== 複数価格 =====
 let priceRows=[];
 function renderPriceRows(initial){
@@ -882,12 +961,11 @@ function removeOverviewBlock(i){overviewBlocks.splice(i,1);renderOverviewBlocks(
 // ===== 画像アップロード（Blob） =====
 async function uploadImageToBlob(file, filename) {
   try {
-    const cred = btoa(`${ADMIN_ID}:${ADMIN_PW}`);
     const safeFilename = encodeURIComponent(filename);
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: {
-        'Authorization': `Basic ${cred}`,
+        'X-Token': sessionToken,
         'Content-Type': file.type || 'image/jpeg',
         'X-Filename': safeFilename,
       },
