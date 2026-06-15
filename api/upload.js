@@ -1,4 +1,4 @@
-// api/upload.js — Vercel Serverless Function（画像アップロード専用）
+// api/upload.js — 画像アップロード専用
 
 const { put } = require('@vercel/blob');
 
@@ -24,24 +24,18 @@ module.exports = async function handler(req, res) {
   }
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  if (req.method !== 'POST') {
-    return res.status(405).json({ error: 'Method Not Allowed' });
-  }
+  if (req.method !== 'POST') return res.status(405).json({ error: 'Method Not Allowed' });
 
   if (!verifyAuth(req.headers['authorization'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
   try {
-    // ファイル名はヘッダーから取得（例: "prod-140601-ホワイト.jpg"）
     const filename = req.headers['x-filename'] || `upload-${Date.now()}.jpg`;
-
-    // リクエストボディをそのままBlobにストリームアップロード
     const { url } = await put(`images/${filename}`, req, {
       access: 'public',
       contentType: req.headers['content-type'] || 'image/jpeg',
     });
-
     return res.status(200).json({ url });
   } catch (e) {
     console.error('Upload error:', e.message);
@@ -50,8 +44,5 @@ module.exports = async function handler(req, res) {
 };
 
 module.exports.config = {
-  api: {
-    bodyParser: false, // ストリームで受け取るために必須
-  },
+  api: { bodyParser: false },
 };
-
