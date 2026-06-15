@@ -125,33 +125,35 @@ function extractDlSections(html) {
   return results;
 }
 
-// ===== サイズ表: class="tb_size" をそのまま保持しつつデータ化 =====
+// ===== サイズ表: class="tb_size" =====
+// 構造: 1行目の<th>がサイズ列名（S,M,L...）、各データ行の最初の<th>がラベル（着丈,身幅...）
 function extractSizeTable(html) {
   const tableMatch = html.match(/<table[^>]*class=["']tb_size["'][^>]*>([\s\S]*?)<\/table>/i);
   if (!tableMatch) return null;
 
   const tableHtml = tableMatch[1];
+  const trMatches = [...tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
+  if (!trMatches.length) return null;
 
-  // th からカラム名（1列目はラベル列なのでスキップ）
-  const thMatches = [...tableHtml.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)];
-  const allCols = thMatches.map(m => stripTags(m[1]).trim()).filter(Boolean);
-  // 1列目がサイズ項目名（"寸法"など）の場合スキップ
-  const cols = allCols.length > 1 ? allCols.slice(1) : allCols;
+  // 1行目: <th>が並ぶヘッダー行 → 1列目（空）を除いてサイズ列名
+  const headerRow = trMatches[0][1];
+  const headerThs = [...headerRow.matchAll(/<th[^>]*>([\s\S]*?)<\/th>/gi)];
+  const cols = headerThs.slice(1).map(m => stripTags(m[1]).trim()).filter(Boolean);
 
-  // tr → td でデータ行
-  const rowMatches = [...tableHtml.matchAll(/<tr[^>]*>([\s\S]*?)<\/tr>/gi)];
-  const rows = [];
-  for (const rowMatch of rowMatches) {
-    const tdMatches = [...rowMatch[1].matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
-    if (!tdMatches.length) continue;
-    const cells = tdMatches.map(m => stripTags(m[1]).trim());
-    const label = cells[0];
-    const rest = cells.slice(1);
-    if (label) rows.push({ label, cells: rest });
-  }
-
-  // thのサイズ一覧（S,M,L... の列名）をカンマ区切りで返す
+  // サイズ一覧（S,M,L,XL,XXL）
   const sizeList = cols.join(',');
+
+  // 2行目以降: 最初の<th>がラベル、<td>がデータ
+  const rows = [];
+  for (let i = 1; i < trMatches.length; i++) {
+    const rowHtml = trMatches[i][1];
+    const thMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
+    const tdMatches = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
+    if (!thMatch) continue;
+    const label = stripTags(thMatch[1]).trim();
+    const cells = tdMatches.map(m => stripTags(m[1]).trim());
+    if (label) rows.push({ label, cells });
+  }
 
   return cols.length ? { cols, rows, sizeList } : null;
 }
