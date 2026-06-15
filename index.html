@@ -34,7 +34,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
   .cat-grid,.prod-grid{grid-template-columns:repeat(2,1fr);gap:10px}
   .pg{padding:12px}.hdr{padding:0 14px}
   .det-wrap{grid-template-columns:1fr !important}
-  .rec-grid{grid-template-columns:repeat(2,1fr) !important}
+  .rec-grid{grid-template-columns:repeat(2,1fr) !important;max-width:100% !important}
   .adm-lay{grid-template-columns:1fr !important}
   .adm-side{display:flex;flex-wrap:wrap;border-right:none;border-bottom:.5px solid var(--border);padding:8px}
   .adm-mi{padding:7px 12px;font-size:12px;border-radius:var(--radius-sm)}
@@ -53,7 +53,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
 .cdots{display:flex;gap:4px;margin-top:5px}.cdot{width:10px;height:10px;border-radius:50%;border:.5px solid rgba(0,0,0,.12)}
 
 /* DETAIL */
-.det-wrap{display:grid;grid-template-columns:1fr 1fr;gap:28px;max-width:820px}
+.det-wrap{display:grid;grid-template-columns:1fr 1fr;gap:28px;max-width:900px;margin:0 auto}
 .det-imgbox{border:.5px solid var(--border);border-radius:var(--radius);aspect-ratio:1/1;overflow:hidden;background:var(--bg2);display:flex;align-items:center;justify-content:center}
 .det-imgbox img{width:100%;height:100%;object-fit:contain}.det-imgbox .ph{font-size:80px}
 .det-headline{font-size:13px;font-weight:600;color:var(--accent);margin-bottom:4px}
@@ -68,7 +68,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
 .sz-opts{display:flex;gap:7px;flex-wrap:wrap}
 .sz-opt{padding:5px 13px;font-size:13px;border:.5px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;transition:all .15s}
 .sz-opt:hover{background:var(--bg2)}.sz-opt.sel{background:var(--txt);color:#fff;border-color:var(--txt)}
-.rec-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:10px}
+.rec-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:10px;max-width:900px;margin-left:auto;margin-right:auto}
 .size-tbl-wrap{overflow-x:auto;margin-top:8px}
 .size-tbl{border-collapse:collapse;font-size:12px;min-width:100%}
 .size-tbl th{background:var(--bg2);padding:6px 10px;border:.5px solid var(--border);font-weight:600;font-size:11px;color:var(--txt2);text-align:center}
@@ -197,7 +197,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
 <!-- DETAIL -->
 <div class="pg" id="pg-det">
   <div class="det-wrap">
-    <div><div class="det-imgbox" id="det-imgbox"><div class="ph"></div></div></div>
+    <div><div class="det-imgbox" id="det-imgbox"><div class="ph"></div></div><p id="det-color-name" style="text-align:center;font-size:12px;color:var(--txt3);margin-top:8px;min-height:16px;letter-spacing:.03em"></p></div>
     <div>
       <p class="det-headline" id="det-headline"></p>
       <p class="det-title" id="det-name"></p>
@@ -208,20 +208,21 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
       <div class="det-sec"><p class="det-lbl">サイズ</p><div class="sz-opts" id="det-sizes"></div></div>
     </div>
   </div>
-  <div id="det-sizetbl-wrap" style="display:none;margin-top:28px;max-width:820px">
+  <div id="det-sizetbl-wrap" style="display:none;margin-top:28px;max-width:900px;margin-left:auto;margin-right:auto">
     <hr class="sec-div" style="margin-top:0"><p class="det-lbl">サイズ表</p>
     <div class="size-tbl-wrap" id="det-sizetbl"></div>
   </div>
-  <div id="det-overview-wrap" style="display:none;margin-top:28px;max-width:820px">
+  <div id="det-overview-wrap" style="display:none;margin-top:28px;max-width:900px;margin-left:auto;margin-right:auto">
     <hr class="sec-div" style="margin-top:0"><p class="det-lbl">概要</p>
     <div id="det-overview"></div>
   </div>
-  <hr class="sec-div"><p class="det-lbl">同カテゴリーのおすすめ</p>
+  <div style="max-width:900px;margin:0 auto"><hr class="sec-div" style="margin-top:0"><p class="det-lbl">同カテゴリーのおすすめ</p>
   <div class="rec-grid" id="det-rec"></div>
   <div id="det-back-wrap" style="margin-top:32px;padding-top:20px;border-top:.5px solid var(--border)">
-    <button class="btn" id="det-back-btn" onclick="" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:10px 18px">
+    <button class="btn btn-acc" id="det-back-btn" onclick="" style="display:inline-flex;align-items:center;gap:8px;font-size:14px;padding:11px 22px;font-weight:500">
       <span style="font-size:15px">←</span><span id="det-back-label">カテゴリーに戻る</span>
     </button>
+  </div>
   </div>
 </div>
 
@@ -657,7 +658,7 @@ function showCat(catId){
   const cat=db.cats.find(c=>c.id===catId); if(!cat)return;
   document.getElementById('list-lbl').textContent=cat.name+' — 商品一覧';
   document.getElementById('prod-grid').innerHTML=db.prods.filter(p=>p.catId===catId&&p.active).map(p=>{
-    const fc=p.colors[0],img=p.colorImgs[fc];
+    const fc=p.colors[0],nc0=normalizeColorName(fc),img=p.colorImgs[fc]||p.colorImgs[nc0]||Object.entries(p.colorImgs||{}).find(([k])=>normalizeColorName(k)===nc0)?.[1];
     const ih=img?`<img src="${img}" alt="${p.name}">`:`<div class="ph">${getCatEmoji(cat.name)}</div>`;
     const dots=p.colors.slice(0,5).map(c=>`<div class="cdot" style="background:${getColorHex(c)}"></div>`).join('');
     return`<div class="prod-card" onclick="showDet(${p.id})"><div class="prod-img">${ih}</div><div class="prod-body"><p class="prod-name">${p.name}</p><div class="cdots">${dots}</div></div></div>`;
@@ -700,7 +701,7 @@ function showDet(prodId){
   } else ovw.style.display='none';
   const recs=db.prods.filter(x=>x.catId===p.catId&&x.id!==p.id&&x.active).slice(0,3);
   document.getElementById('det-rec').innerHTML=recs.map(r=>{
-    const fc=r.colors[0],ri=r.colorImgs[fc];
+    const fc=r.colors[0],rnc=normalizeColorName(fc),ri=r.colorImgs[fc]||r.colorImgs[rnc]||Object.entries(r.colorImgs||{}).find(([k])=>normalizeColorName(k)===rnc)?.[1];
     const ih=ri?`<img src="${ri}" style="width:100%;height:100%;object-fit:cover">`:`<div class="ph" style="font-size:28px">${getCatEmoji(cat?cat.name:'')}</div>`;
     return`<div class="prod-card" onclick="showDet(${r.id})"><div class="prod-img">${ih}</div><div class="prod-body"><p class="prod-name">${r.name}</p></div></div>`;
   }).join('');
@@ -723,6 +724,8 @@ function setDetImg(p,c){
   const src=p.colorImgs[c]||p.colorImgs[nc]
     ||Object.entries(p.colorImgs||{}).find(([k])=>normalizeColorName(k)===nc)?.[1];
   box.innerHTML=src?`<img src="${src}" style="width:100%;height:100%;object-fit:contain">`:`<div class="ph">${getCatEmoji((db.cats.find(x=>x.id===p.catId)||{}).name||'')}</div>`;
+  const nameEl=document.getElementById('det-color-name');
+  if(nameEl) nameEl.textContent=nc||'';
 }
 function selColor(idx,cn,total,prodId){
   for(let i=0;i<total;i++)document.getElementById('co-'+i)?.classList.remove('sel');
@@ -773,7 +776,7 @@ function renderAdmProds(){
 
   document.getElementById('prod-tbl').innerHTML=`<tr><th>ID</th><th>画像</th><th>商品名</th><th>カテゴリー</th><th>定価</th><th>仕入れ価格</th><th>状態</th><th>操作</th></tr>`+
     prods.map(p=>{
-      const cat=db.cats.find(c=>c.id===p.catId),fc=p.colors[0],img=p.colorImgs[fc];
+      const cat=db.cats.find(c=>c.id===p.catId),fc=p.colors[0],pnc=normalizeColorName(fc),img=p.colorImgs[fc]||p.colorImgs[pnc]||Object.entries(p.colorImgs||{}).find(([k])=>normalizeColorName(k)===pnc)?.[1];
       const th=img?`<img src="${img}" class="tbl-thumb">`:`<div class="tbl-thumb-wrap">${getCatEmoji(cat?cat.name:'')}</div>`;
       const price=getPrice(p);
       const allPrices=p.prices&&p.prices.length?p.prices.map(pr=>pr.amount):[price];
