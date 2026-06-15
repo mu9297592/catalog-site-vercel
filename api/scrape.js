@@ -202,6 +202,10 @@ module.exports = async function handler(req, res) {
 
     const html = await response.text();
 
+    // h1周辺のデバッグ情報を常に含める
+    const h1Raw = (html.match(/<h1[\s\S]{0,200}/i)||['not found'])[0].slice(0,200);
+    const mainRaw = (html.match(/<main[\s\S]{0,300}/i)||['not found'])[0].slice(0,300);
+
     const name      = extractName(html);
     const headline  = extractHeadline(html);
     const desc      = extractDesc(html);
@@ -226,10 +230,12 @@ module.exports = async function handler(req, res) {
         name:     name || '',
         headline: headline || '',
         desc:     desc || '',
-        prices,        // [{label, size, amount}]
-        sizeList,      // "S,M,L,XL,XXL" など
+        prices,
+        sizeList,
         overview,
         sizeTable: sizeTable ? { cols: sizeTable.cols, rows: sizeTable.rows } : null,
+        _h1Raw: h1Raw,
+        _mainRaw: mainRaw,
       }
     });
 
