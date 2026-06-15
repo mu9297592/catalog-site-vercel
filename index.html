@@ -483,7 +483,9 @@ const DEFAULT_CMAP={
 const API = '/api/data';
 let db = null; // サーバーから取得後に設定
 let authed = false, editCatId=null, editProdId=null, editColorId=null;
-let sessionToken = null; // ログイン後にサーバーから取得したトークン
+let sessionToken = null; // ログイン後に設定
+const ADMIN_ID = 'fusionia';
+const ADMIN_PW = 'zZ8$ePmy#ZYO';
 let tmpCatImg=null, tmpColorImgs={};
 let steState={cols:[],rows:[]};
 
@@ -521,7 +523,7 @@ async function persistToServer(){
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'X-Token': sessionToken
+        'Authorization': `Basic ${sessionToken}`
       },
       body: JSON.stringify(db)
     });
@@ -570,28 +572,15 @@ function getLocalFallback(){
 
 // ===== AUTH =====
 function tryAdmin(){if(authed)showAdm();else{showPg('login');setBc([])}}
-async function doLogin(){
+function doLogin(){
   const id=document.getElementById('l-id').value.trim();
   const pw=document.getElementById('l-pw').value;
   const errEl=document.getElementById('login-err');
-  const btn=document.querySelector('#m-login .btn-p');
-  btn.disabled=true; btn.textContent='確認中...';
-  try{
-    const res=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({id,pw})});
-    const data=await res.json();
-    if(data.ok&&data.token){
-      sessionToken=data.token;
-      authed=true;
-      errEl.style.display='none';
-      closeModal();
-      showAdm();
-    } else {
-      errEl.style.display='block';
-    }
-  }catch(e){
+  if(id===ADMIN_ID&&pw===ADMIN_PW){
+    sessionToken=btoa(`${ADMIN_ID}:${ADMIN_PW}`);
+    authed=true; errEl.style.display='none'; closeModal(); showAdm();
+  } else {
     errEl.style.display='block';
-  } finally {
-    btn.disabled=false; btn.textContent='ログイン';
   }
 }
 function doLogout(){authed=false;sessionToken=null;goTop();toast('ログアウトしました')}
@@ -838,7 +827,7 @@ async function scrapeUrl(){
   try{
     const res=await fetch('/api/scrape',{
       method:'POST',
-      headers:{'Content-Type':'application/json','X-Token':sessionToken},
+      headers:{'Content-Type':'application/json','Authorization':`Basic ${sessionToken}`},
       body:JSON.stringify({url})
     });
     const json=await res.json();
@@ -965,7 +954,7 @@ async function uploadImageToBlob(file, filename) {
     const res = await fetch('/api/upload', {
       method: 'POST',
       headers: {
-        'X-Token': sessionToken,
+        'Authorization': `Basic ${sessionToken}`,
         'Content-Type': file.type || 'image/jpeg',
         'X-Filename': safeFilename,
       },
