@@ -150,8 +150,8 @@ function extractSizeTable(html) {
     const thMatch = rowHtml.match(/<th[^>]*>([\s\S]*?)<\/th>/i);
     const tdMatches = [...rowHtml.matchAll(/<td[^>]*>([\s\S]*?)<\/td>/gi)];
     if (!thMatch) continue;
-    const label = stripTags(thMatch[1]).trim();
-    const cells = tdMatches.map(m => stripTags(m[1]).trim());
+    const label = stripTags(thMatch[1]).replace(/\n/g,' ').replace(/\s+/g,' ').trim();
+    const cells = tdMatches.map(m => stripTags(m[1]).replace(/\n/g,' ').replace(/\s+/g,' ').trim());
     if (label) rows.push({ label, cells });
   }
 
