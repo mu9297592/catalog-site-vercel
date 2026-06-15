@@ -1,7 +1,5 @@
 // api/scrape.js — 外部サイトスクレイピング（サーバーサイド）
 
-const crypto = require('crypto');
-
 const ADMIN_ID = process.env.ADMIN_ID || 'fusionia';
 const ADMIN_PW = process.env.ADMIN_PW || 'zZ8$ePmy#ZYO';
 
@@ -9,19 +7,13 @@ const headers = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
-  'Access-Control-Allow-Headers': 'Content-Type, X-Token',
+  'Access-Control-Allow-Headers': 'Content-Type, Authorization',
 };
 
-function getSessionToken() {
-  return crypto
-    .createHmac('sha256', ADMIN_PW)
-    .update(ADMIN_ID + (process.env.VERCEL_DEPLOYMENT_ID || 'local'))
-    .digest('hex');
-}
-
-function verifyToken(req) {
-  const token = req.headers['x-token'];
-  return token && token === getSessionToken();
+function verifyAuth(authHeader) {
+  if (!authHeader) return false;
+  const expected = `Basic ${Buffer.from(`${ADMIN_ID}:${ADMIN_PW}`).toString('base64')}`;
+  return authHeader === expected;
 }
 
 // HTMLから特定セレクターのテキストを抽出するシンプルなパーサー
@@ -129,7 +121,7 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method Not Allowed' });
   }
 
-  if (!verifyToken(req)) {
+  if (!verifyAuth(req.headers['authorization'])) {
     return res.status(401).json({ error: 'Unauthorized' });
   }
 
