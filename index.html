@@ -20,7 +20,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
 /* HEADER */
 .hdr{background:var(--bg);border-bottom:.5px solid var(--border);height:52px;padding:0 20px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:50}
 .logo{font-size:16px;font-weight:700;letter-spacing:-.02em;cursor:pointer;color:var(--txt)}.logo em{color:var(--accent);font-style:normal}
-.bc{font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:5px;flex-wrap:wrap}.bc a{color:var(--accent);cursor:pointer}.bc a:hover{text-decoration:underline}
+.bc{font-size:12px;color:var(--txt3);display:flex;align-items:center;gap:5px;flex-wrap:wrap}.bc a{color:var(--accent);cursor:pointer}.bc a:hover{text-decoration:underline}@media(max-width:600px){.bc{display:none}}
 .btn{padding:6px 14px;font-size:13px;border-radius:var(--radius-sm);cursor:pointer;border:.5px solid var(--border2);background:var(--bg);color:var(--txt2);transition:all .15s;white-space:nowrap}
 .btn:hover{background:var(--bg2)}.btn-p{background:var(--txt);color:#fff;border-color:var(--txt)}.btn-p:hover{background:#333}
 .btn-acc{background:var(--accent);color:#fff;border-color:var(--accent)}.btn-acc:hover{background:var(--accent-txt);color:#fff}
@@ -218,6 +218,11 @@ body{font-family:-apple-system,BlinkMacSystemFont,'Hiragino Sans','Yu Gothic UI'
   </div>
   <hr class="sec-div"><p class="det-lbl">同カテゴリーのおすすめ</p>
   <div class="rec-grid" id="det-rec"></div>
+  <div id="det-back-wrap" style="margin-top:32px;padding-top:20px;border-top:.5px solid var(--border)">
+    <button class="btn" id="det-back-btn" onclick="" style="display:flex;align-items:center;gap:6px;font-size:13px;padding:10px 18px">
+      <span style="font-size:15px">←</span><span id="det-back-label">カテゴリーに戻る</span>
+    </button>
+  </div>
 </div>
 
 <!-- LOGIN -->
@@ -699,6 +704,10 @@ function showDet(prodId){
     const ih=ri?`<img src="${ri}" style="width:100%;height:100%;object-fit:cover">`:`<div class="ph" style="font-size:28px">${getCatEmoji(cat?cat.name:'')}</div>`;
     return`<div class="prod-card" onclick="showDet(${r.id})"><div class="prod-img">${ih}</div><div class="prod-body"><p class="prod-name">${r.name}</p></div></div>`;
   }).join('');
+  // カテゴリーへ戻るボタンを更新
+  const backBtn=document.getElementById('det-back-btn');
+  const backLbl=document.getElementById('det-back-label');
+  if(backBtn&&cat){backBtn.setAttribute('onclick',`showCat(${p.catId})`);backLbl.textContent=cat.name+' 一覧に戻る';}
   showPg('det'); setBc([{label:cat?cat.name:'',fn:`showCat(${p.catId})`},{label:p.name}]);
 }
 function renderSizeTblHTML(st){
@@ -978,21 +987,24 @@ function renderPriceRows(initial){
   _drawPriceRows();
 }
 function _drawPriceRows(){
-  // ヘッダー行（1行目のみ）
-  const header=`<div style="display:flex;gap:6px;margin-bottom:2px;padding:0 2px">
-    <div style="flex:1.5;font-size:11px;color:var(--txt3)">ラベル</div>
-    <div style="flex:0.8;font-size:11px;color:var(--txt3)">SIZE</div>
-    <div style="flex:1;font-size:11px;color:var(--txt3)">金額（税込）</div>
-    <div style="flex:1;font-size:11px;color:var(--txt3)">仕入れ価格（×0.3）</div>
-    <div style="width:28px"></div>
-  </div>`;
-  document.getElementById('price-rows').innerHTML=header+priceRows.map((pr,i)=>`
-    <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
-      <div style="flex:1.5"><input class="fi" style="margin-bottom:0" value="${esc(pr.label)}" placeholder="ナチュラル" oninput="priceRows[${i}].label=this.value"></div>
-      <div style="flex:0.8"><input class="fi" style="margin-bottom:0" value="${esc(pr.size||'')}" placeholder="S" oninput="priceRows[${i}].size=this.value"></div>
-      <div style="flex:1"><input class="fi" style="margin-bottom:0" type="number" value="${pr.amount||''}" placeholder="470" oninput="priceRows[${i}].amount=parseFloat(this.value)||0;_updateSalePrice(${i})"></div>
-      <div style="flex:1"><div class="price-calc-box" style="margin-bottom:0"><span class="price-display" id="sale-${i}">${pr.amount?'¥'+Math.round(pr.amount*0.3).toLocaleString():'—'}</span></div></div>
-      <div style="width:28px;text-align:center">${priceRows.length>1?`<button class="btn btn-xs" style="color:var(--err);padding:2px 6px" onclick="removePriceRow(${i})">✕</button>`:''}</div>
+  document.getElementById('price-rows').innerHTML=priceRows.map((pr,i)=>`
+    <div style="border:.5px solid var(--border);border-radius:var(--radius-sm);padding:10px 12px;margin-bottom:8px;background:var(--bg2)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span style="font-size:11px;font-weight:600;color:var(--txt3)">価格 ${i+1}</span>
+        ${priceRows.length>1?`<button class="btn btn-xs" style="color:var(--err)" onclick="removePriceRow(${i})">✕ 削除</button>`:''}
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <div><label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:3px">ラベル</label>
+          <input class="fi" style="margin-bottom:0" value="${esc(pr.label)}" placeholder="例：ナチュラル" oninput="priceRows[${i}].label=this.value"></div>
+        <div><label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:3px">SIZE</label>
+          <input class="fi" style="margin-bottom:0" value="${esc(pr.size||'')}" placeholder="例：S" oninput="priceRows[${i}].size=this.value"></div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+        <div><label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:3px">金額（税込）</label>
+          <input class="fi" style="margin-bottom:0" type="number" value="${pr.amount||''}" placeholder="例：1980" oninput="priceRows[${i}].amount=parseFloat(this.value)||0;_updateSalePrice(${i})"></div>
+        <div><label style="font-size:11px;color:var(--txt3);display:block;margin-bottom:3px">仕入れ価格（×0.3）</label>
+          <div class="price-calc-box" style="margin-bottom:0"><span class="price-display" id="sale-${i}" style="font-size:16px">${pr.amount?'¥'+Math.round(pr.amount*0.3).toLocaleString():'—'}</span></div></div>
+      </div>
     </div>`).join('');
 }
 function _updateSalePrice(i){const el=document.getElementById('sale-'+i);if(el){const v=priceRows[i].amount;el.textContent=v?'¥'+Math.round(v*0.3).toLocaleString():'—'}}
