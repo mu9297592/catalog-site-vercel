@@ -25,16 +25,20 @@ const stripTags = s => s
   .replace(/\n{3,}/g, '\n\n')
   .trim();
 
-// ===== 商品名: <h1> =====
+// ===== 商品名: <main> 内の <h1> =====
 function extractName(html) {
-  // <h1>直下のテキスト（<span>などがネストしている場合も考慮）
-  const m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  // まず <main> を探してその中の <h1> を取得
+  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+  const scope = mainMatch ? mainMatch[1] : html;
+  const m = scope.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
   return m ? stripTags(m[1]).replace(/\s+/g, ' ').trim() : null;
 }
 
-// ===== 見出し: <h2> =====
+// ===== 見出し: <main> 内の <h2> =====
 function extractHeadline(html) {
-  const m = html.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
+  const mainMatch = html.match(/<main[^>]*>([\s\S]*?)<\/main>/i);
+  const scope = mainMatch ? mainMatch[1] : html;
+  const m = scope.match(/<h2[^>]*>([\s\S]*?)<\/h2>/i);
   return m ? stripTags(m[1]).replace(/\s+/g, ' ').trim() : null;
 }
 
