@@ -1131,16 +1131,72 @@ async function saveColor(){
   const name=document.getElementById('f-color-name').value.trim();
   const hex=document.getElementById('f-color-hex').value;
   if(!name){toast('カラー名を入力してください');return}
-  if(editColorId){const c=db.colorMaster.find(x=>x.id===editColorId);c.name=name;c.hex=hex;toast('カラーを更新しました')}
-  else{db.colorMaster.push({id:db.nextColorId++,name,hex});toast('カラーを追加しました')}
-  closeModal(); renderAdmColors();
+  if(editColorId){
+    const c=db.colorMaster.find(x=>x.id===editColorId);
+    const oldName=c.name;
+    c.name=name; c.hex=hex;
+    // カラー名が変わった場合、全商品の colors 配列・colorImgs キーも更新する
+    if(oldName!==name){
+      db.prods.forEach(p=>{
+        const ci=p.colors.indexOf(oldName);
+        if(ci!==-1) p.colors[ci]=name;
+        if(p.colorImgs&&p.colorImgs[oldName]!==undefined){
+          p.colorImgs[name]=p.colorImgs[oldName];
+          delete p.colorImgs[oldName];
+        }
+      });
+    }
+    toast('カラーを更新しました');
+  } else {
+    db.colorMaster.push({id:db.nextColorId++,name,hex});
+    toast('カラーを追加しました');
+  }
+  closeModal();
+  renderAdmColors();
+  // カラーマスター変更後、商品一覧・詳細ページのカラードットを再描画
+  renderTop();
+  // 商品一覧ページが表示中なら再描画
+  const listPg=document.getElementById('pg-list');
+  if(listPg&&listPg.classList.contains('on')){
+    const lbl=document.getElementById('list-lbl').textContent;
+    const cat=db.cats.find(c=>lbl.startsWith(c.name));
+    if(cat) showCat(cat.id);
+  }
+  // 現在商品詳細ページが表示中ならカラーオプションを再描画
+  const detPg=document.getElementById('pg-det');
+  if(detPg&&detPg.classList.contains('on')){
+    const colOpts=document.getElementById('det-colors');
+    if(colOpts&&colOpts.children.length){
+      // 現在表示中の商品IDを breadcrumb から特定して再描画
+      const selOpt=colOpts.querySelector('.col-opt.sel');
+      const selIdx=selOpt?parseInt(selOpt.id.replace('co-',''))||0:0;
+      // onclick属性からprodIdを取得
+      const firstOpt=colOpts.querySelector('.col-opt');
+      if(firstOpt){
+        const m=firstOpt.getAttribute('onclick').match(/,(\d+)\)/);
+        if(m){
+          const pid=parseInt(m[1]);
+          const p=db.prods.find(x=>x.id===pid);
+          if(p){
+            colOpts.innerHTML=p.colors.map((c,i)=>`
+              <div class="col-opt ${i===selIdx?'sel':''}" id="co-${i}" onclick="selColor(${i},'${c}',${p.colors.length},${p.id})">
+                <div class="col-sw" style="background:${getColorHex(c)}"></div>
+                <span class="col-nm">${c}</span></div>`).join('');
+          }
+        }
+      }
+    }
+  }
+  // 商品編集モーダルが開いていればカラー画像行も再描画
+  const mProd=document.getElementById('m-prod');
+  if(mProd&&mProd.style.display==='block') renderColorImgRows();
   await persistToServer();
 }
 async function toggleCat(id){const c=db.cats.find(x=>x.id===id);if(c){c.active=!c.active;renderAdmCats();renderTop();toast(c.active?'表示に変更':'非表示に変更');await persistToServer()}}
 async function toggleProd(id){const p=db.prods.find(x=>x.id===id);if(p){p.active=!p.active;renderAdmProds();toast(p.active?'表示に変更':'非表示に変更');await persistToServer()}}
 async function delCat(id){if(!confirm('削除しますか？'))return;db.cats=db.cats.filter(x=>x.id!==id);renderAdmCats();renderTop();toast('削除しました');await persistToServer()}
 async function delProd(id){if(!confirm('削除しますか？'))return;db.prods=db.prods.filter(x=>x.id!==id);renderAdmProds();renderAdmCats();renderTop();toast('削除しました');await persistToServer()}
-async function delColor(id){if(!confirm('このカラーを削除しますか？'))return;db.colorMaster=db.colorMaster.filter(x=>x.id!==id);renderAdmColors();toast('削除しました');await persistToServer()}
+async function delColor(id){if(!confirm('このカラーを削除しますか？'))return;db.colorMaster=db.colorMaster.filter(x=>x.id!==id);renderAdmColors();renderTop();toast('削除しました');await persistToServer()}
 function admTab(key,el){document.querySelectorAll('.adm-mi').forEach(x=>x.classList.remove('on'));document.querySelectorAll('.adm-sec').forEach(x=>x.classList.remove('on'));el.classList.add('on');document.getElementById('adm-'+key).classList.add('on')}
 function toast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('on');setTimeout(()=>t.classList.remove('on'),2500)}
 function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;')}
