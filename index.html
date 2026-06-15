@@ -510,8 +510,7 @@ const COLOR_KEYWORD_MAP=[
 ];
 function normalizeColorName(s){
   // 不可視文字・ゼロ幅スペース・改行・タブ・全角スペース・半角スペースを除去
-  return (s||'').replace(/[​-‍﻿ 　
-	]/g,'').trim();
+  return (s||'').replace(/[\u200B\u200C\u200D\uFEFF\u00A0\u3000\r\n\t]/g,'').trim();
 }
 function getColorHex(n){
   if(!n) return '#AAAAAA';
