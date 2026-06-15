@@ -21,9 +21,7 @@ function readDataJson() {
     if (fs.existsSync(DATA_FILE)) {
       return JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
     }
-  } catch (e) {
-    console.error('data.json read error:', e);
-  }
+  } catch (e) { console.error('data.json read error:', e); }
   return { cats:[], prods:[], colorMaster:[], nextCatId:1, nextProdId:1, nextColorId:1 };
 }
 
@@ -34,11 +32,8 @@ function verifyAuth(authHeader) {
 }
 
 async function getBlobData() {
-  // Blob一覧からcatalog-data.jsonを探す
   const { blobs } = await list({ prefix: 'catalog-data' });
   if (!blobs || blobs.length === 0) return null;
-
-  // 最新のものを取得
   const blob = blobs[0];
   const response = await fetch(blob.url);
   if (!response.ok) return null;
@@ -60,48 +55,28 @@ module.exports = async function handler(req, res) {
   }
   Object.entries(headers).forEach(([k, v]) => res.setHeader(k, v));
 
-  // ===== GET =====
   if (req.method === 'GET') {
     try {
-      // ローカル開発環境
-      if (process.env.VERCEL !== '1') {
-        return res.status(200).json(readDataJson());
-      }
-
-      // Blobからデータ取得
+      if (process.env.VERCEL !== '1') return res.status(200).json(readDataJson());
       let data = await getBlobData();
-
-      // 初回（Blobが空）→ data.jsonを自動移行
-      if (!data) {
-        console.log('Blob empty. Migrating from data.json...');
-        data = readDataJson();
-        await saveBlobData(data);
-        console.log('Migration complete.');
-      }
-
+      if (!data) { data = readDataJson(); await saveBlobData(data); }
       return res.status(200).json(data);
     } catch (e) {
       console.error('GET error:', e.message);
-      // エラー時はdata.jsonでフォールバック
       return res.status(200).json(readDataJson());
     }
   }
 
-  // ===== POST =====
   if (req.method === 'POST') {
     if (!verifyAuth(req.headers['authorization'])) {
       return res.status(401).json({ error: 'Unauthorized' });
     }
     try {
       const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body;
-
-      // ローカル開発環境
       if (process.env.VERCEL !== '1') {
         fs.writeFileSync(DATA_FILE, JSON.stringify(body, null, 2));
         return res.status(200).json({ ok: true });
       }
-
-      // Blobに保存
       await saveBlobData(body);
       return res.status(200).json({ ok: true });
     } catch (e) {
@@ -114,9 +89,5 @@ module.exports = async function handler(req, res) {
 };
 
 module.exports.config = {
-  api: {
-    bodyParser: {
-      sizeLimit: '10mb',
-    },
-  },
+  api: { bodyParser: { sizeLimit: '10mb' } },
 };
